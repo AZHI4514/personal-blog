@@ -1,6 +1,7 @@
 package com.azhi.service.impl;
 
 import com.azhi.service.UploadService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,7 +18,9 @@ import java.util.UUID;
 public class UploadServiceImpl implements UploadService {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
-    private static final Path IMAGE_UPLOAD_DIR = Paths.get("uploads", "images");
+
+    @Value("${file.upload.path:./uploads}")
+    private String uploadPath;
 
     @Override
     public String uploadImage(MultipartFile file) {
@@ -32,9 +35,10 @@ public class UploadServiceImpl implements UploadService {
         }
 
         try {
-            Files.createDirectories(IMAGE_UPLOAD_DIR);
+            Path imageUploadDir = Paths.get(uploadPath, "images").toAbsolutePath().normalize();
+            Files.createDirectories(imageUploadDir);
             String filename = UUID.randomUUID() + "." + extension;
-            Path target = IMAGE_UPLOAD_DIR.resolve(filename);
+            Path target = imageUploadDir.resolve(filename);
             file.transferTo(target);
             return "/uploads/images/" + filename;
         } catch (IOException ex) {

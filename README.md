@@ -1,69 +1,73 @@
-﻿# Personal Blog
+# Personal Blog
 
-A full-stack personal blog built with Vue 3 + Spring Boot.
+Vue 3 + Spring Boot personal blog, prepared for local development and production deployment.
 
-## Tech Stack
+## Stack
 
-### Frontend
-- Vue 3 + Vite
-- Vue Router + Pinia
-- Axios
+- Frontend: Vue 3, Vite, Vue Router, Pinia, Axios
+- Backend: Spring Boot 3.5, MyBatis, MySQL
 
-### Backend
-- Java 17 + Spring Boot 3.5
-- MyBatis
-- MySQL
-- Maven
+## Project Layout
 
-## Project Structure
-
-`
+```text
 personal-blog/
-鈹溾攢鈹€ frontend/    # Vue 3 frontend
-鈹溾攢鈹€ backend/     # Spring Boot backend
-鈹斺攢鈹€ blog_db_backup.sql
-`
+├─ frontend/
+├─ backend/
+├─ deploy/
+├─ blog_db_backup.sql
+└─ .env.example
+```
 
-## Quick Start
+## Local Development
 
-### Prerequisites
-- Node.js >= 20.19.0
+### Requirements
+
+- Node.js >= 20.19
 - Java 17
 - Maven
 - MySQL 8+
 
-### Database Setup
+### Database
 
-1. Create the database:
-`sql
+```sql
 CREATE DATABASE blog_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-`
+```
 
-2. Import the backup:
-`ash
+Import the backup:
+
+```bash
 mysql -u your_username -p blog_db < blog_db_backup.sql
-`
+```
 
 ### Backend
 
-`ash
-cd backend
-# Edit src/main/resources/application.yml with your DB credentials
-mvn spring-boot:run
-`
+Set environment variables based on `.env.example`, then run:
 
-The backend runs on http://localhost:8080.
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+Default backend address: `http://localhost:8080`
 
 ### Frontend
 
-`ash
+Optional: copy `frontend/.env.example` to `frontend/.env.local` if you need a custom API address.
+
+```bash
 cd frontend
 npm install
 npm run dev
-`
+```
 
-The frontend dev server proxies API requests to http://localhost:8080.
+Default frontend address: `http://localhost:5173`
 
-## Environment Variables
+## Production Notes
 
-Copy .env.example to .env and fill in your values. See .env.example for details.
+- Do not commit real database credentials or server IPs.
+- Use `VITE_API_BASE_URL=/` in production and let Nginx proxy API routes.
+- Prefer `DB_HOST=127.0.0.1` when backend and MySQL are on the same server.
+- Set `UPLOAD_PATH` to an absolute server path.
+- Restrict `CORS_ALLOWED_ORIGINS` to your real domain.
+
+See `deploy/DEPLOY.md` for deployment steps and `deploy/nginx.conf.example` for the reverse proxy example.
