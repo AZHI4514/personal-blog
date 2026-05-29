@@ -12,6 +12,7 @@ target/
 .env
 .env.*
 !.env.example
+.env.example
 
 # OS files
 .DS_Store
@@ -35,3 +36,10 @@ backend/src/main/resources/static/uploads/
 *.mp3
 backend/log/
 backend/*.log
+
+# Private docs and backups
+blog_db_backup.sql
+database.md
+solve.txt
+技术栈.txt
+部署步骤.txt
