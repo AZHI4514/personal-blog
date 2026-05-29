@@ -12,10 +12,7 @@ Vue 3 + Spring Boot personal blog, prepared for local development and production
 ```text
 personal-blog/
 ├─ frontend/
-├─ backend/
-├─ deploy/
-├─ blog_db_backup.sql
-└─ .env.example
+└─ backend/
 ```
 
 ## Local Development
@@ -69,5 +66,3 @@ Default frontend address: `http://localhost:5173`
 - Prefer `DB_HOST=127.0.0.1` when backend and MySQL are on the same server.
 - Set `UPLOAD_PATH` to an absolute server path.
 - Restrict `CORS_ALLOWED_ORIGINS` to your real domain.
-
-See `deploy/DEPLOY.md` for deployment steps and `deploy/nginx.conf.example` for the reverse proxy example.
