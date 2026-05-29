@@ -1,0 +1,37 @@
+﻿# 鏈嶅姟鍣ㄩ厤缃?
+server:
+  port: 8080
+
+# Spring 閰嶇疆
+spring:
+  # 鏁版嵁婧愰厤缃?
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+#    url: jdbc:mysql://localhost:3306/blog_db
+    url: jdbc:mysql://localhost:3306/blog_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: your_db_username
+    password: your_db_password
+
+  # 鏂囦欢涓婁紶閰嶇疆
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      max-request-size: 3MB
+
+  # 闈欐€佽祫婧愭槧灏勶紙鐢ㄤ簬璁块棶涓婁紶鐨勫浘鐗囷級
+  web:
+    resources:
+      static-locations: classpath:/static/
+
+# MyBatis 閰嶇疆
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.azhi.pojo
+
+# 鑷畾涔夐厤缃細鏂囦欢涓婁紶璺緞
+file:
+  upload:
+    path: ./uploads   # 鐩稿浜庨」鐩牴鐩綍鐨勮矾寰

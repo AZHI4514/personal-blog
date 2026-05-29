@@ -1,0 +1,423 @@
+================================================================================
+                    个人博客后端系统 - 代码运行逻辑分析
+================================================================================
+
+项目概述：
+- 技术栈：Spring Boot 3.5.13 + MyBatis 3.0.5 + MySQL + Lombok
+- 项目结构：标准MVC分层架构（Controller -> Service -> Mapper -> Database）
+- 主要功能：文章管理、图片画廊、音乐展示、点赞、文件上传、访客统计
+
+================================================================================
+                              一、系统配置模块
+================================================================================
+
+1. 应用启动入口
+   文件：src/main/java/com/azhi/PersonalBlogApplication.java
+   功能：Spring Boot应用启动类
+   逻辑：
+   - 使用@SpringBootApplication注解标记主类
+   - 通过SpringApplication.run()启动应用
+
+2. Web配置
+   文件：src/main/java/com/azhi/config/WebConfig.java
+   功能：静态资源映射配置
+   逻辑：
+   - 实现WebMvcConfigurer接口
+   - 配置/uploads/**路径映射到文件系统的uploads/目录
+   - 用于访问上传的图片等静态资源
+
+3. 应用配置文件
+   文件：src/main/resources/application.yml
+   配置项：
+   - 服务器端口：8080
+   - 数据库：MySQL (localhost:3306/blog_db)
+   - 文件上传限制：最大3MB
+   - MyBatis配置：下划线转驼峰、SQL日志输出
+
+================================================================================
+                              二、统一响应封装
+================================================================================
+
+文件：src/main/java/com/azhi/pojo/Result.java
+功能：统一API响应格式封装
+逻辑：
+- 泛型类Result<T>，包含code、message、data三个字段
+- success()方法：返回成功响应（code=200）
+- error()方法：返回错误响应（默认code=400）
+- serverError()方法：返回服务器错误响应（code=500）
+
+================================================================================
+                              三、文章管理功能
+================================================================================
+
+【数据模型】
+文件：src/main/java/com/azhi/pojo/Post.java
+字段说明：
+- id/postId：文章ID（双字段同步）
+- parentId：父文章ID（用于回复功能，NULL表示主帖）
+- username：用户名（默认Anonymous）
+- email：邮箱
+- title：标题
+- content：内容
+- imagePath：图片路径
+- deleteKey：删除密钥（仅写入，不返回给前端）
+- createTime/updateTime：创建/更新时间
+- replyCount：回复数量
+- replies：回复列表（嵌套结构）
+
+【数据访问层】
+文件：src/main/java/com/azhi/mapper/PostMapper.java
+SQL操作：
+1. insert() - 插入新文章
+   SQL: INSERT INTO post (parent_id, username, email, title, content, image_path, 
+        delete_key, create_time, update_time) VALUES (...)
+   特点：使用@Options获取自增主键
+
+2. selectTopPosts() - 查询所有顶级文章
+   SQL: SELECT * FROM post WHERE parent_id IS NULL ORDER BY create_time DESC
+   用途：获取主帖列表
+
+3. selectRepliesByParentId() - 查询指定文章的回复
+   SQL: SELECT * FROM post WHERE parent_id = #{parentId} ORDER BY create_time ASC
+   用途：获取某篇文章的所有回复
+
+4. selectById() - 根据ID查询文章
+   SQL: SELECT * FROM post WHERE id = #{id}
+   用途：验证文章存在性
+
+5. deleteByIdAndKey() - 根据ID和密钥删除文章
+   SQL: DELETE FROM post WHERE id = #{id} AND delete_key = #{deleteKey}
+   特点：需要验证删除密钥
+
+6. deleteRepliesByParentId() - 删除指定文章的所有回复
+   SQL: DELETE FROM post WHERE parent_id = #{parentId}
+   用途：删除主帖时级联删除回复
+
+7. updateByIdAndKey() - 根据ID和密钥更新文章
+   SQL: UPDATE post SET title=?, content=?, image_path=?, update_time=? 
+        WHERE id=? AND delete_key=?
+   特点：需要验证删除密钥
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/PostService.java（接口）
+      src/main/java/com/azhi/service/impl/PostServiceImpl.java（实现）
+
+功能1：创建文章 createPost()
+流程：
+1. 验证内容不能为空
+2. 验证删除密钥不能为空
+3. 设置默认用户名（如果为空则为Anonymous）
+4. 设置创建时间和更新时间为当前时间
+5. 如果是回复（parentId不为空），验证父文章是否存在
+6. 插入数据库
+7. 返回文章对象（replyCount初始化为0）
+
+功能2：获取所有文章 getAllPosts()
+流程：
+1. 查询所有顶级文章（parent_id IS NULL）
+2. 遍历每篇顶级文章，查询其回复列表
+3. 设置回复列表和回复数量
+4. 返回嵌套结构的文章列表
+
+功能3：删除文章 deletePost()
+流程：
+1. 验证删除密钥不能为空
+2. 查询文章是否存在
+3. 验证删除密钥是否正确
+4. 如果是主帖（parentId为null），先删除所有回复
+5. 删除文章本身
+6. 使用事务保证数据一致性
+
+功能4：更新文章 updatePost()
+流程：
+1. 验证删除密钥不能为空
+2. 验证内容不能为空
+3. 查询文章是否存在
+4. 验证删除密钥是否正确
+5. 合并新旧数据（标题和图片路径可选更新）
+6. 更新数据库
+7. 返回更新后的文章
+8. 使用事务保证数据一致性
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/PostController.java
+API接口：
+1. POST /posts - 创建文章
+   请求体：Post对象（JSON）
+   响应：Result<Post>
+
+2. GET /posts - 获取所有文章
+   响应：Result<List<Post>>（包含嵌套回复）
+
+3. DELETE /posts/{postId} - 删除文章
+   路径参数：postId
+   请求体：{"deleteKey": "xxx"}
+   响应：Result<Void>
+
+4. PUT /posts/{postId} - 更新文章
+   路径参数：postId
+   请求体：{"deleteKey": "xxx", "title": "新标题", "content": "新内容", "imagePath": "路径"}
+   响应：Result<Post>
+
+================================================================================
+                              四、图片画廊功能
+================================================================================
+
+【数据模型】
+文件：src/main/java/com/azhi/pojo/Image.java
+字段说明：
+- id：图片ID
+- path：图片路径
+- author：作者
+- createTime：创建时间
+
+【数据访问层】
+文件：src/main/java/com/azhi/mapper/ImageMapper.java
+SQL操作：
+1. findAllImages() - 查询所有图片
+   SQL: SELECT id, path, author FROM image ORDER BY create_time DESC
+   用途：获取图片列表，按创建时间倒序
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/GalleryService.java（接口）
+      src/main/java/com/azhi/service/impl/GalleryServiceImpl.java（实现）
+
+功能：获取所有图片 getAllImages()
+流程：
+1. 调用Mapper查询所有图片
+2. 返回图片列表
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/GalleryController.java
+API接口：
+1. GET /images - 获取所有图片
+   响应：Result<List<Image>>
+
+================================================================================
+                              五、音乐展示功能
+================================================================================
+
+【数据模型】
+文件：src/main/java/com/azhi/pojo/Music.java
+字段说明：
+- id/musicId：音乐ID（双字段同步）
+- title：标题
+- artist：艺术家
+- filePath：音乐文件路径
+- coverPath：封面图片路径
+- updateTime：更新时间
+
+【数据访问层】
+文件：src/main/java/com/azhi/mapper/MusicMapper.java
+SQL操作：
+1. findAllMusics() - 查询所有音乐
+   SQL: SELECT id, title, artist, file_path, cover_path FROM music ORDER BY update_time DESC
+   用途：获取音乐列表，按更新时间倒序
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/MusicService.java（接口）
+      src/main/java/com/azhi/service/impl/MusicServiceImpl.java（实现）
+
+功能：获取所有音乐 getAllMusics()
+流程：
+1. 调用Mapper查询所有音乐
+2. 返回音乐列表
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/MusicController.java
+API接口：
+1. GET /musics - 获取所有音乐
+   响应：Result<List<Music>>
+
+================================================================================
+                              六、点赞功能
+================================================================================
+
+【数据模型】
+文件：src/main/java/com/azhi/pojo/Clap.java
+字段说明：
+- id：记录ID
+- total：总点赞数
+
+【数据访问层】
+文件：src/main/java/com/azhi/mapper/ClapMapper.java
+SQL操作：
+1. incrementClap() - 增加点赞数
+   SQL: UPDATE clap SET total = total + 1 WHERE id = 1
+   特点：原子操作，直接在数据库层面递增
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/ClapService.java（接口）
+      src/main/java/com/azhi/service/impl/ClapServiceImpl.java（实现）
+
+功能：点赞 clap()
+流程：
+1. 调用Mapper递增点赞数
+2. 使用事务保证数据一致性
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/ClapController.java
+API接口：
+1. POST /clap - 点赞
+   响应：Result<Void>
+
+================================================================================
+                              七、文件上传功能
+================================================================================
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/UploadService.java（接口）
+      src/main/java/com/azhi/service/impl/UploadServiceImpl.java（实现）
+
+功能：上传图片 uploadImage()
+流程：
+1. 验证文件不为空
+2. 清理文件名（防止路径遍历攻击）
+3. 获取文件扩展名
+4. 验证扩展名是否允许（jpg, jpeg, png, gif, webp）
+5. 创建上传目录（uploads/images/）
+6. 生成UUID文件名（防止重名）
+7. 保存文件到磁盘
+8. 返回访问路径（/uploads/images/xxx.jpg）
+
+安全措施：
+- 文件类型白名单验证
+- UUID文件名防止覆盖
+- 路径清理防止攻击
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/UploadController.java
+API接口：
+1. POST /uploads/images - 上传图片
+   请求：multipart/form-data（file字段）
+   响应：Result<Map<String, String>>（包含filePath）
+
+================================================================================
+                              八、访客统计功能
+================================================================================
+
+【数据模型】
+文件：src/main/java/com/azhi/pojo/VisitorStat.java
+字段说明：
+- id：记录ID
+- total：总访客数
+
+【数据访问层】
+文件：src/main/java/com/azhi/mapper/VisitorStatMapper.java
+SQL操作：
+1. getTotalVisitors() - 获取总访客数
+   SQL: SELECT total FROM visitor_stat WHERE id = 1
+
+2. incrementVisitorCount() - 增加访客数
+   SQL: UPDATE visitor_stat SET total = total + 1 WHERE id = 1
+   特点：原子操作，直接在数据库层面递增
+
+【业务逻辑层】
+文件：src/main/java/com/azhi/service/VisitorStatsService.java（接口）
+      src/main/java/com/azhi/service/impl/VisitorStatsServiceImpl.java（实现）
+
+功能1：记录访客 recordVisitor()
+流程：
+1. 调用Mapper递增访客数
+2. 使用事务保证数据一致性
+
+功能2：获取总访客数 getTotalVisitors()
+流程：
+1. 查询总访客数
+2. 如果为null则返回0
+
+【控制器层】
+文件：src/main/java/com/azhi/controller/VisitorStatsController.java
+API接口：
+1. POST /visitor-stats/record - 记录访客
+   响应：Result<Map<String, Long>>（包含totalVisitors）
+
+2. GET /visitor-stats/total - 获取总访客数
+   响应：Result<Map<String, Long>>（包含totalVisitors）
+
+================================================================================
+                              九、API接口汇总
+================================================================================
+
+| 方法   | 路径                    | 功能           | 请求参数                |
+|--------|------------------------|----------------|------------------------|
+| POST   | /posts                 | 创建文章       | Post对象(JSON)         |
+| GET    | /posts                 | 获取所有文章   | 无                     |
+| DELETE | /posts/{postId}        | 删除文章       | deleteKey(JSON)        |
+| PUT    | /posts/{postId}        | 更新文章       | deleteKey,title,content,imagePath |
+| GET    | /images                | 获取所有图片   | 无                     |
+| GET    | /musics                | 获取所有音乐   | 无                     |
+| POST   | /clap                  | 点赞           | 无                     |
+| POST   | /uploads/images        | 上传图片       | file(multipart)        |
+| POST   | /visitor-stats/record  | 记录访客       | 无                     |
+| GET    | /visitor-stats/total   | 获取总访客数   | 无                     |
+
+================================================================================
+                              十、数据库表结构推断
+================================================================================
+
+根据代码推断的数据库表：
+
+1. post表
+   - id (BIGINT, 主键, 自增)
+   - parent_id (BIGINT, 外键, 可空)
+   - username (VARCHAR)
+   - email (VARCHAR, 可空)
+   - title (VARCHAR, 可空)
+   - content (TEXT)
+   - image_path (VARCHAR, 可空)
+   - delete_key (VARCHAR)
+   - create_time (DATETIME)
+   - update_time (DATETIME)
+
+2. image表
+   - id (BIGINT, 主键)
+   - path (VARCHAR)
+   - author (VARCHAR, 可空)
+   - create_time (DATETIME)
+
+3. music表
+   - id (BIGINT, 主键)
+   - title (VARCHAR)
+   - artist (VARCHAR, 可空)
+   - file_path (VARCHAR)
+   - cover_path (VARCHAR, 可空)
+   - update_time (DATETIME)
+
+4. clap表
+   - id (BIGINT, 主键)
+   - total (BIGINT)
+
+5. visitor_stat表
+   - id (BIGINT, 主键)
+   - total (BIGINT)
+
+================================================================================
+                              十一、技术特点总结
+================================================================================
+
+1. 架构设计
+   - 标准三层架构：Controller -> Service -> Mapper
+   - 接口与实现分离（Service接口 + Impl实现类）
+   - 统一响应格式（Result封装）
+
+2. 数据访问
+   - MyBatis注解方式（@Select, @Insert, @Update, @Delete）
+   - 无XML映射文件，全部使用注解SQL
+
+3. 事务管理
+   - 写操作使用@Transactional注解
+   - 保证数据一致性
+
+4. 安全措施
+   - 文章删除/更新需要密钥验证
+   - 文件上传类型白名单
+   - UUID文件名防止覆盖
+   - 路径清理防止攻击
+
+5. 代码规范
+   - Lombok简化代码（@Data, @RequiredArgsConstructor）
+   - 驼峰命名自动映射
+   - JSON格式化时间输出
+
+================================================================================

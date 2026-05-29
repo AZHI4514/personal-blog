@@ -1,0 +1,33 @@
+更新前端：
+
+---
+scp D:\personal-blog\personal-blog-front\src\App.vue root@你的服务器IP:/opt/personal-blog/personal-blog-front/src/App.vue
+---
+
+
+1. 在服务器上修改 package.json
+bash
+cd /opt/personal-blog/personal-blog-front
+
+2. 重新构建前端
+bash
+npm run build
+
+3. 部署到 Nginx 目录
+bash
+sudo rm -rf /var/www/personal-blog/*
+sudo cp -r dist/* /var/www/personal-blog/
+sudo chown -R www-data:www-data /var/www/personal-blog
+sudo systemctl reload nginx
+
+更新后端：
+
+---
+scp D:\personal-blog\personal-blog-front\src\App.vue root@你的服务器IP:/opt/personal-blog/personal-blog-front/src/App.vue
+---
+
+cd /opt/personal-blog/personal-blog-back
+
+mvn clean package -DskipTests
+cp target/personal-blog-0.0.1-SNAPSHOT.jar /opt/personal-blog/backend/app.jar
+sudo systemctl restart personal-blog-back
