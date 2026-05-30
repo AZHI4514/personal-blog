@@ -782,7 +782,7 @@ onMounted(() => {
       <div v-if="currentPage === 'bbs'" class="bbs-container">
         <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>☽AZHI☾的小屋<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
 
-        <div class="post-form">
+        <div v-if="!isLoggedIn" class="post-form">
           <div class="post-form-title">登录与注册</div>
           <form @submit.prevent="submitAuth">
             <table class="form-table">
