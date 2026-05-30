@@ -1084,6 +1084,10 @@ body {
   overflow-x: auto;
 }
 
+a {
+  text-decoration: none;
+}
+
 /* ===== 2. 主布局结构 ===== */
 #app {
   width: 100%;
@@ -1165,6 +1169,7 @@ body {
   padding: 0;
   font: inherit;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .mobile-top-links a:hover,
