@@ -2,9 +2,10 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { recordVisitor, getTotalVisitors } from '@/api/visitor'
 import { sendClap } from '@/api/clap'
-import { getImages } from '@/api/gallery'
-import { getMusics } from '@/api/music'
+import { createImage, getImages } from '@/api/gallery'
+import { createMusic, getMusics } from '@/api/music'
 import { deletePost } from '@/api/post'
+import { uploadImageFile, uploadMusicFile } from '@/api/upload'
 import { loginUser, logoutUser, registerUser } from '@/api/user'
 
 const currentPage = ref('home')
@@ -25,7 +26,27 @@ const authForm = ref({
 })
 const authSubmitting = ref(false)
 const isLoggedIn = computed(() => !!currentUser.value)
+const isAdmin = computed(() => currentUser.value?.username === 'AZHI4514')
 const canDeleteWithoutKey = computed(() => currentUser.value?.username === 'AZHI4514')
+const adminMusicForm = ref({
+  title: '',
+  artist: '',
+  filePath: '',
+  coverPath: ''
+})
+const adminImageForm = ref({
+  path: '',
+  author: 'AZHI4514'
+})
+const adminUploading = ref({
+  music: false,
+  cover: false,
+  image: false
+})
+const adminSubmitting = ref({
+  music: false,
+  image: false
+})
 
 const handleClap = async () => {
   try {
@@ -76,6 +97,10 @@ const logout = async () => {
   localStorage.removeItem('currentUser')
   posts.value = []
   resetForm()
+  resetAdminForms()
+  if (currentPage.value === 'admin') {
+    currentPage.value = 'home'
+  }
 }
 
 // ==================== BBS 统一表单 ====================
@@ -100,7 +125,6 @@ const uploadImage = async (event, targetForm) => {
   const file = event.target.files[0]
   if (!file) return
   uploading.value = true
-  const { uploadImageFile } = await import('@/api/upload')
   try {
     const res = await uploadImageFile(file)
     targetForm.imagePath = res.filePath
@@ -113,6 +137,131 @@ const uploadImage = async (event, targetForm) => {
 }
 
 const handleFileUpload = (event) => uploadImage(event, postForm.value)
+
+const resetAdminForms = () => {
+  adminMusicForm.value = {
+    title: '',
+    artist: '',
+    filePath: '',
+    coverPath: ''
+  }
+  adminImageForm.value = {
+    path: '',
+    author: currentUser.value?.username || 'AZHI4514'
+  }
+}
+
+const handleAdminMusicUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  adminUploading.value.music = true
+  try {
+    const res = await uploadMusicFile(file)
+    adminMusicForm.value.filePath = res.filePath
+  } catch (err) {
+    console.error('音乐上传失败', err)
+    alert('音乐上传失败，请稍后再试')
+  } finally {
+    adminUploading.value.music = false
+    event.target.value = ''
+  }
+}
+
+const handleAdminCoverUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  adminUploading.value.cover = true
+  try {
+    const res = await uploadImageFile(file)
+    adminMusicForm.value.coverPath = res.filePath
+  } catch (err) {
+    console.error('封面上传失败', err)
+    alert('封面上传失败，请稍后再试')
+  } finally {
+    adminUploading.value.cover = false
+    event.target.value = ''
+  }
+}
+
+const handleAdminImageUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  adminUploading.value.image = true
+  try {
+    const res = await uploadImageFile(file)
+    adminImageForm.value.path = res.filePath
+  } catch (err) {
+    console.error('图片上传失败', err)
+    alert('图片上传失败，请稍后再试')
+  } finally {
+    adminUploading.value.image = false
+    event.target.value = ''
+  }
+}
+
+const submitAdminMusic = async () => {
+  if (!isAdmin.value) {
+    alert('只有管理员可以使用这个页面')
+    return
+  }
+  if (!adminMusicForm.value.title.trim() || !adminMusicForm.value.filePath.trim()) {
+    alert('请先填写歌曲名并上传音乐文件')
+    return
+  }
+
+  adminSubmitting.value.music = true
+  try {
+    await createMusic({
+      title: adminMusicForm.value.title.trim(),
+      artist: adminMusicForm.value.artist.trim(),
+      filePath: adminMusicForm.value.filePath.trim(),
+      coverPath: adminMusicForm.value.coverPath.trim()
+    })
+    alert('音乐已添加到列表')
+    adminMusicForm.value = {
+      title: '',
+      artist: '',
+      filePath: '',
+      coverPath: ''
+    }
+    await loadMusicList()
+  } catch (err) {
+    console.error('添加音乐失败', err)
+    alert(err.message || '添加音乐失败')
+  } finally {
+    adminSubmitting.value.music = false
+  }
+}
+
+const submitAdminImage = async () => {
+  if (!isAdmin.value) {
+    alert('只有管理员可以使用这个页面')
+    return
+  }
+  if (!adminImageForm.value.path.trim() || !adminImageForm.value.author.trim()) {
+    alert('请先上传图片并填写作者')
+    return
+  }
+
+  adminSubmitting.value.image = true
+  try {
+    await createImage({
+      path: adminImageForm.value.path.trim(),
+      author: adminImageForm.value.author.trim()
+    })
+    alert('图片已添加到画廊')
+    adminImageForm.value = {
+      path: '',
+      author: currentUser.value?.username || 'AZHI4514'
+    }
+    await loadGallery()
+  } catch (err) {
+    console.error('添加图片失败', err)
+    alert(err.message || '添加图片失败')
+  } finally {
+    adminSubmitting.value.image = false
+  }
+}
 
 // ---------- 统一提交：发帖、回复或编辑 ----------
 const submitPostOrReply = async () => {
@@ -473,6 +622,9 @@ function closeSidebar() {
 }
 
 function showPage(pageName) {
+  if (pageName === 'admin' && !isAdmin.value) {
+    return
+  }
   currentPage.value = pageName
   isAuthMenuOpen.value = false
   closeSidebar()
@@ -508,6 +660,7 @@ async function loadGallery() {
 }
 
 onMounted(() => {
+  resetAdminForms()
   recordAndGetVisitor()
   loadGallery()
   loadPosts()
@@ -559,6 +712,7 @@ onMounted(() => {
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('rules')">※使用规定</a><span>←必读</span></li>
         <li><span class="menu-icon">◆</span> <span href="#"><del>游戏角</del></span>&nbsp;制作中</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('music')">音乐</a></li>
+        <li v-if="isAdmin"><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('admin')">管理员</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('links')">链接集</a></li>
       </ul>
       <div class="menu-notice">(个人博客同好站)</div>
@@ -791,6 +945,81 @@ onMounted(() => {
           <div class="artwork-info">
             <p class="artwork-author">作者：{{ image.author }}</p>
           </div>
+        </div>
+      </div>
+
+      <div v-if="currentPage === 'admin' && isAdmin" class="bbs-container">
+        <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>管理员<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
+        <p class="admin-intro">仅管理员可见。这里可以维护音乐和画廊内容，表单格式分别对应 `Music.java` 与 `Image.java`。</p>
+
+        <div class="post-form">
+          <div class="post-form-title">上传音乐</div>
+          <form @submit.prevent="submitAdminMusic">
+            <table class="form-table">
+              <tr>
+                <th class="form-label">歌曲名</th>
+                <td class="form-title-cell">
+                  <input type="text" v-model="adminMusicForm.title" required class="form-input form-input-title" placeholder="对应 Music.title">
+                  <input type="submit" value="保存音乐" class="form-submit form-submit-top" :disabled="adminSubmitting.music">
+                </td>
+              </tr>
+              <tr>
+                <th class="form-label">艺术家</th>
+                <td>
+                  <input type="text" v-model="adminMusicForm.artist" class="form-input" placeholder="对应 Music.artist">
+                </td>
+              </tr>
+              <tr>
+                <th class="form-label">音乐文件</th>
+                <td>
+                  <input type="file" @change="handleAdminMusicUpload" accept=".mp3,.wav,.ogg,.flac,.m4a,audio/*" class="form-file">
+                  <span v-if="adminUploading.music" class="form-hint">上传中...</span>
+                  <span v-if="adminMusicForm.filePath" class="form-hint">已上传: {{ adminMusicForm.filePath }}</span>
+                </td>
+              </tr>
+              <tr>
+                <th class="form-label">封面图</th>
+                <td>
+                  <input type="file" @change="handleAdminCoverUpload" accept="image/*" class="form-file">
+                  <span v-if="adminUploading.cover" class="form-hint">上传中...</span>
+                  <span v-if="adminMusicForm.coverPath" class="form-hint">已上传: {{ adminMusicForm.coverPath }}</span>
+                </td>
+              </tr>
+            </table>
+          </form>
+          <ul class="form-notes">
+            <li>提交字段：`title`、`artist`、`filePath`、`coverPath`。</li>
+            <li>音乐文件会先上传，再按 `Music.java` 的字段结构写入列表。</li>
+          </ul>
+        </div>
+
+        <hr>
+
+        <div class="post-form">
+          <div class="post-form-title">上传图片</div>
+          <form @submit.prevent="submitAdminImage">
+            <table class="form-table">
+              <tr>
+                <th class="form-label">图片文件</th>
+                <td>
+                  <input type="file" @change="handleAdminImageUpload" accept="image/*" class="form-file">
+                  <span v-if="adminUploading.image" class="form-hint">上传中...</span>
+                  <span v-if="adminImageForm.path" class="form-hint">已上传: {{ adminImageForm.path }}</span>
+                </td>
+              </tr>
+              <tr>
+                <th class="form-label">作者</th>
+                <td class="form-title-cell">
+                  <input type="text" v-model="adminImageForm.author" required class="form-input form-input-title" placeholder="对应 Image.author">
+                  <input type="submit" value="保存图片" class="form-submit form-submit-top" :disabled="adminSubmitting.image">
+                </td>
+              </tr>
+            </table>
+          </form>
+          <ul class="form-notes">
+            <li>提交字段：`path`、`author`。</li>
+            <li>图片文件会先上传，再按 `Image.java` 的字段结构写入画廊。</li>
+          </ul>
         </div>
       </div>
 
@@ -1637,6 +1866,16 @@ a {
   margin: 18px 0;
 }
 
+.admin-intro {
+  max-width: 720px;
+  margin: 0 auto 14px;
+  padding: 8px 10px;
+  background: #fffef7;
+  border: 1px dotted #b9a982;
+  color: #6b4f1d;
+  line-height: 1.6;
+}
+
 .post-form {
   max-width: 720px;
   margin: 0 auto 10px;
@@ -2355,6 +2594,10 @@ tbody tr:hover {
     width: 100%;
     max-width: none;
     box-sizing: border-box;
+  }
+
+  .admin-intro {
+    max-width: none;
   }
 
   .post-list {

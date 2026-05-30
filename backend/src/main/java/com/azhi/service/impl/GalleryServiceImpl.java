@@ -18,4 +18,9 @@ public class GalleryServiceImpl implements GalleryService {
     public List<Image> getAllImages() {
         return imageMapper.findAllImages();
     }
+
+    @Override
+    public void createImage(Image image) {
+        imageMapper.insertImage(image);
+    }
 }

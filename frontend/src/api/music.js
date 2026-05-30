@@ -7,3 +7,11 @@ export const getMusics = () => {
     method: 'get'
   })
 }
+
+export const createMusic = (data) => {
+  return request({
+    url: '/musics',
+    method: 'post',
+    data
+  })
+}

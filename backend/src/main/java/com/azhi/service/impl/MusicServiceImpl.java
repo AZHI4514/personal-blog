@@ -5,7 +5,6 @@ import com.azhi.pojo.Music;
 import com.azhi.service.MusicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.List;
 
@@ -18,5 +17,10 @@ public class MusicServiceImpl implements MusicService {
     @Override
     public List<Music> getAllMusics() {
         return musicMapper.findAllMusics();
+    }
+
+    @Override
+    public void createMusic(Music music) {
+        musicMapper.insertMusic(music);
     }
 }

@@ -7,3 +7,11 @@ export const getImages = () => {
     method: 'get'
   })
 }
+
+export const createImage = (data) => {
+  return request({
+    url: '/images',
+    method: 'post',
+    data
+  })
+}

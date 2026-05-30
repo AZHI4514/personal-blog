@@ -11,3 +11,14 @@ export const uploadImageFile = (file) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
+
+export const uploadMusicFile = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request({
+    url: '/uploads/musics',
+    method: 'post',
+    data: formData,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}

@@ -5,6 +5,8 @@ import com.azhi.pojo.Result;
 import com.azhi.service.MusicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,5 +23,11 @@ public class MusicController {
     public Result<List<Music>> getAllMusics() {
         List<Music> musics = musicService.getAllMusics();
         return Result.success(musics);
+    }
+
+    @PostMapping
+    public Result<Void> createMusic(@RequestBody Music music) {
+        musicService.createMusic(music);
+        return Result.success();
     }
 }

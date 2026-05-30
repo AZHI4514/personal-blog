@@ -17,33 +17,20 @@ import java.util.UUID;
 @Service
 public class UploadServiceImpl implements UploadService {
 
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png", "gif", "webp");
+    private static final Set<String> ALLOWED_MUSIC_EXTENSIONS = Set.of("mp3", "wav", "ogg", "flac", "m4a");
 
     @Value("${file.upload.path:./uploads}")
     private String uploadPath;
 
     @Override
     public String uploadImage(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Upload file cannot be empty");
-        }
+        return uploadFile(file, "images", ALLOWED_IMAGE_EXTENSIONS, "Only jpg, jpeg, png, gif and webp images are supported");
+    }
 
-        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
-        String extension = getExtension(originalFilename);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
-            throw new IllegalArgumentException("Only jpg, jpeg, png, gif and webp images are supported");
-        }
-
-        try {
-            Path imageUploadDir = Paths.get(uploadPath, "images").toAbsolutePath().normalize();
-            Files.createDirectories(imageUploadDir);
-            String filename = UUID.randomUUID() + "." + extension;
-            Path target = imageUploadDir.resolve(filename);
-            file.transferTo(target);
-            return "/uploads/images/" + filename;
-        } catch (IOException ex) {
-            throw new IllegalStateException("Image save failed", ex);
-        }
+    @Override
+    public String uploadMusic(MultipartFile file) {
+        return uploadFile(file, "musics", ALLOWED_MUSIC_EXTENSIONS, "Only mp3, wav, ogg, flac and m4a audio files are supported");
     }
 
     private String getExtension(String filename) {
@@ -52,5 +39,28 @@ public class UploadServiceImpl implements UploadService {
             return "";
         }
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private String uploadFile(MultipartFile file, String directory, Set<String> allowedExtensions, String errorMessage) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Upload file cannot be empty");
+        }
+
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
+        String extension = getExtension(originalFilename);
+        if (!allowedExtensions.contains(extension)) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+
+        try {
+            Path uploadDir = Paths.get(uploadPath, directory).toAbsolutePath().normalize();
+            Files.createDirectories(uploadDir);
+            String filename = UUID.randomUUID() + "." + extension;
+            Path target = uploadDir.resolve(filename);
+            file.transferTo(target);
+            return "/uploads/" + directory + "/" + filename;
+        } catch (IOException ex) {
+            throw new IllegalStateException("File save failed", ex);
+        }
     }
 }

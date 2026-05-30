@@ -22,4 +22,9 @@ public class UploadController {
     public Result<Map<String, String>> uploadImage(@RequestParam("file") MultipartFile file) {
         return Result.success(Map.of("filePath", uploadService.uploadImage(file)));
     }
+
+    @PostMapping("/musics")
+    public Result<Map<String, String>> uploadMusic(@RequestParam("file") MultipartFile file) {
+        return Result.success(Map.of("filePath", uploadService.uploadMusic(file)));
+    }
 }
