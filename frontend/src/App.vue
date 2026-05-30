@@ -812,11 +812,13 @@ onMounted(() => {
           <div class="log-box">
             <div class="log-content">
               <ul>
-                <li><span class="log">2026-3-19</span> 已修复Links☆</li>
-                  <li><span class="log">2026-3-19</span> 留言板垃圾信息过滤加强！</li>
-                  <li><span class="log">2026-3-17</span> 更新了个人资料100问100答♪</li>
-                  <li><span class="log">2026-3-16</span> 更换了网站背景 (>_<)</li>
-                  <li><span class="log">2026-3-15</span> 已把留言板上的画作全部备份完成！
+                <li><span class="log">2026-5-30</span> 更新了音乐与画廊样式~</li>
+                <li><span class="log">2026-5-29</span> 更新了☽AZHI☾的小屋</li>
+                <li><span class="log">2026-4-19</span> 已修复Links☆</li>
+                <li><span class="log">2026-4-19</span> 留言板垃圾信息过滤加强！</li>
+                <li><span class="log">2026-4-17</span> 更新了个人资料100问100答♪</li>
+                <li><span class="log">2026-3-16</span> 更换了网站背景 (>_<)</li>
+                <li><span class="log">2026-3-15</span> 已把画作全部备份完成！
                 </li>
               </ul>
             </div>
