@@ -81,6 +81,24 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    public void deletePostAsAdmin(Long id) {
+        Post post = postMapper.selectById(id);
+        if (post == null) {
+            throw new IllegalArgumentException("Post does not exist");
+        }
+
+        if (post.getParentId() == null) {
+            postMapper.deleteRepliesByParentId(id);
+        }
+
+        int deleted = postMapper.deleteById(id);
+        if (deleted == 0) {
+            throw new IllegalArgumentException("Delete failed");
+        }
+    }
+
+    @Override
+    @Transactional
     public Post updatePost(Long id, String deleteKey, String title, String content, String imagePath) {
         if (!StringUtils.hasText(deleteKey)) {
             throw new IllegalArgumentException("Delete key cannot be empty");

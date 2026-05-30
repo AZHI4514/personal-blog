@@ -47,6 +47,9 @@ public interface PostMapper {
     @Delete("DELETE FROM post WHERE id = #{id} AND delete_key = #{deleteKey}")
     int deleteByIdAndKey(@Param("id") Long id, @Param("deleteKey") String deleteKey);
 
+    @Delete("DELETE FROM post WHERE id = #{id}")
+    int deleteById(Long id);
+
     @Delete("DELETE FROM post WHERE parent_id = #{parentId}")
     int deleteRepliesByParentId(Long parentId);
 

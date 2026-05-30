@@ -26,6 +26,8 @@ public interface PostService {
      */
     void deletePost(Long id, String deleteKey);
 
+    void deletePostAsAdmin(Long id);
+
     /**
      * 更新帖子内容（需要验证删除密钥）
      * @param id        帖子 ID

@@ -2,6 +2,7 @@ package com.azhi.controller;
 
 import com.azhi.pojo.Post;
 import com.azhi.pojo.Result;
+import com.azhi.pojo.User;
 import com.azhi.service.PostService;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
@@ -36,9 +37,13 @@ public class PostController {
     }
 
     @DeleteMapping("/{postId}")
-    public Result<Void> deletePost(@PathVariable Long postId, @RequestBody(required = false) Map<String, String> body) {
+    public Result<Void> deletePost(HttpSession session, @PathVariable Long postId, @RequestBody(required = false) Map<String, String> body) {
         String deleteKey = body == null ? null : body.get("deleteKey");
-        postService.deletePost(postId, deleteKey);
+        if (isAdminUser(session.getAttribute("currentUser"))) {
+            postService.deletePostAsAdmin(postId);
+        } else {
+            postService.deletePost(postId, deleteKey);
+        }
         return Result.success();
     }
 
@@ -55,5 +60,13 @@ public class PostController {
         if (session.getAttribute("currentUser") == null) {
             throw new IllegalArgumentException("请先登录");
         }
+    }
+
+    private boolean isAdminUser(Object currentUser) {
+        if (!(currentUser instanceof User)) {
+            return false;
+        }
+        User user = (User) currentUser;
+        return "AZHI4514".equals(user.getUsername());
     }
 }

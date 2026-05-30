@@ -25,6 +25,7 @@ const authForm = ref({
 })
 const authSubmitting = ref(false)
 const isLoggedIn = computed(() => !!currentUser.value)
+const canDeleteWithoutKey = computed(() => currentUser.value?.username === 'AZHI4514')
 
 const handleClap = async () => {
   try {
@@ -203,6 +204,21 @@ const startEdit = (post) => {
 }
 
 const deletePostHandler = async (postId) => {
+  if (canDeleteWithoutKey.value) {
+    const confirmed = confirm('是否要删除')
+    if (!confirmed) return
+    try {
+      await deletePost(postId)
+      alert('删除成功')
+      await loadPosts()
+    } catch (err) {
+      console.error('删除失败', err)
+      const msg = err.response?.data?.message || '删除失败，请稍后再试'
+      alert(msg)
+    }
+    return
+  }
+
   const deleteKey = prompt('请输入该帖子的删除钥匙（发帖时填写的）')
   if (deleteKey === null) return
   try {
