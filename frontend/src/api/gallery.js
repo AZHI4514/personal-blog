@@ -15,3 +15,10 @@ export const createImage = (data) => {
     data
   })
 }
+
+export const deleteImage = (imageId) => {
+  return request({
+    url: `/images/${imageId}`,
+    method: 'delete'
+  })
+}

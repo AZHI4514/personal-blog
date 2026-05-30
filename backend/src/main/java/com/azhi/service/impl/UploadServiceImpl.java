@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -31,6 +32,25 @@ public class UploadServiceImpl implements UploadService {
     @Override
     public String uploadMusic(MultipartFile file) {
         return uploadFile(file, "musics", ALLOWED_MUSIC_EXTENSIONS, "Only mp3, wav, ogg, flac and m4a audio files are supported");
+    }
+
+    @Override
+    public void deleteStoredFile(String filePath) {
+        if (filePath == null || filePath.isBlank() || !filePath.startsWith("/uploads/")) {
+            return;
+        }
+
+        try {
+            String relativePath = filePath.substring("/uploads/".length()).replace("/", java.io.File.separator);
+            Path target = Paths.get(uploadPath).toAbsolutePath().normalize().resolve(relativePath).normalize();
+            Path uploadRoot = Paths.get(uploadPath).toAbsolutePath().normalize();
+            if (!target.startsWith(uploadRoot)) {
+                return;
+            }
+            Files.deleteIfExists(target);
+        } catch (IOException ex) {
+            throw new IllegalStateException("File delete failed", ex);
+        }
     }
 
     private String getExtension(String filename) {

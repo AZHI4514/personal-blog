@@ -15,3 +15,10 @@ export const createMusic = (data) => {
     data
   })
 }
+
+export const deleteMusic = (musicId) => {
+  return request({
+    url: `/musics/${musicId}`,
+    method: 'delete'
+  })
+}

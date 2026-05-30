@@ -2,8 +2,8 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { recordVisitor, getTotalVisitors } from '@/api/visitor'
 import { sendClap } from '@/api/clap'
-import { createImage, getImages } from '@/api/gallery'
-import { createMusic, getMusics } from '@/api/music'
+import { createImage, deleteImage, getImages } from '@/api/gallery'
+import { createMusic, deleteMusic, getMusics } from '@/api/music'
 import { deletePost } from '@/api/post'
 import { uploadImageFile, uploadMusicFile } from '@/api/upload'
 import { loginUser, logoutUser, registerUser } from '@/api/user'
@@ -46,6 +46,10 @@ const adminUploading = ref({
 const adminSubmitting = ref({
   music: false,
   image: false
+})
+const adminDeleting = ref({
+  musicId: null,
+  imageId: null
 })
 
 const handleClap = async () => {
@@ -260,6 +264,57 @@ const submitAdminImage = async () => {
     alert(err.message || '添加图片失败')
   } finally {
     adminSubmitting.value.image = false
+  }
+}
+
+const deleteAdminMusic = async (music) => {
+  if (!isAdmin.value) {
+    alert('只有管理员可以使用这个页面')
+    return
+  }
+  if (!confirm(`确定删除音乐《${music.title}》吗？`)) {
+    return
+  }
+
+  adminDeleting.value.musicId = music.musicId
+  try {
+    await deleteMusic(music.musicId)
+    if (musicList.value[currentMusicIndex.value]?.musicId === music.musicId) {
+      releaseAudio()
+      currentMusicIndex.value = -1
+      currentTime.value = 0
+      duration.value = 0
+      isPlaying.value = false
+    }
+    await loadMusicList()
+    alert('音乐已删除')
+  } catch (err) {
+    console.error('删除音乐失败', err)
+    alert(err.message || '删除音乐失败')
+  } finally {
+    adminDeleting.value.musicId = null
+  }
+}
+
+const deleteAdminImage = async (image) => {
+  if (!isAdmin.value) {
+    alert('只有管理员可以使用这个页面')
+    return
+  }
+  if (!confirm(`确定删除作者为 ${image.author} 的这张图片吗？`)) {
+    return
+  }
+
+  adminDeleting.value.imageId = image.id
+  try {
+    await deleteImage(image.id)
+    await loadGallery()
+    alert('图片已删除')
+  } catch (err) {
+    console.error('删除图片失败', err)
+    alert(err.message || '删除图片失败')
+  } finally {
+    adminDeleting.value.imageId = null
   }
 }
 
@@ -1020,6 +1075,56 @@ onMounted(() => {
             <li>提交字段：`path`、`author`。</li>
             <li>图片文件会先上传，再按 `Image.java` 的字段结构写入画廊。</li>
           </ul>
+        </div>
+
+        <hr>
+
+        <div class="music-list admin-music-list">
+          <h3>曲目列表</h3>
+          <table class="music-table">
+            <thead>
+              <tr><th>序号</th><th>封面</th><th>曲名</th><th>艺术家</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(music, idx) in musicList" :key="music.musicId" @click="playMusic(music)" class="music-item">
+                <td>{{ idx + 1 }}</td>
+                <td><img :src="music.coverPath" class="list-cover" alt="封面"></td>
+                <td>{{ music.title }}</td>
+                <td>{{ music.artist }}</td>
+                <td class="admin-actions-cell">
+                  <button class="play-btn" @click.stop="playMusic(music)">▶ 播放</button>
+                  <button
+                    class="delete-btn admin-delete-btn"
+                    type="button"
+                    @click.stop="deleteAdminMusic(music)"
+                    :disabled="adminDeleting.musicId === music.musicId"
+                  >
+                    {{ adminDeleting.musicId === music.musicId ? '删除中...' : '删除音乐' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr>
+
+        <div class="admin-gallery-list">
+          <h3>画廊</h3>
+          <div v-for="(image, index) in galleryImages" :key="image.id || index" class="artwork-card">
+            <img :src="image.path" :alt="image.title" class="artwork-img" />
+            <div class="artwork-info">
+              <p class="artwork-author">作者：{{ image.author }}</p>
+              <button
+                class="delete-btn admin-delete-btn"
+                type="button"
+                @click="deleteAdminImage(image)"
+                :disabled="adminDeleting.imageId === image.id"
+              >
+                {{ adminDeleting.imageId === image.id ? '删除中...' : '删除图片' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1876,6 +1981,30 @@ a {
   line-height: 1.6;
 }
 
+.admin-music-list,
+.admin-gallery-list {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.admin-gallery-list h3 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #0f5e6d;
+  margin: 0 0 10px;
+  padding: 4px 8px;
+  background: #e3f4f7;
+  border: 1px solid #79ACC5;
+}
+
+.admin-actions-cell {
+  white-space: nowrap;
+}
+
+.admin-delete-btn {
+  margin-left: 8px;
+}
+
 .post-form {
   max-width: 720px;
   margin: 0 auto 10px;
@@ -2598,6 +2727,16 @@ tbody tr:hover {
 
   .admin-intro {
     max-width: none;
+  }
+
+  .admin-music-list,
+  .admin-gallery-list {
+    max-width: none;
+  }
+
+  .admin-delete-btn {
+    margin-left: 6px;
+    margin-top: 6px;
   }
 
   .post-list {
