@@ -17,6 +17,7 @@ const galleryImages = ref([
 ])
 const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || 'null'))
 const authMode = ref('login')
+const isAuthMenuOpen = ref(false)
 const authForm = ref({
   username: '',
   password: '',
@@ -70,6 +71,7 @@ const logout = async () => {
     console.error('退出登录失败', err)
   }
   currentUser.value = null
+  isAuthMenuOpen.value = false
   localStorage.removeItem('currentUser')
   posts.value = []
   resetForm()
@@ -456,7 +458,17 @@ function closeSidebar() {
 
 function showPage(pageName) {
   currentPage.value = pageName
+  isAuthMenuOpen.value = false
   closeSidebar()
+}
+
+function openAuthPage(mode) {
+  authMode.value = mode
+  showPage('bbs')
+}
+
+function toggleAuthMenu() {
+  isAuthMenuOpen.value = !isAuthMenuOpen.value
 }
 
 async function recordAndGetVisitor() {
@@ -492,7 +504,31 @@ onMounted(() => {
     <div class="mobile-top-bar">
       <button class="mobile-menu-btn" type="button" @click="toggleSidebar" aria-label="展开菜单">☰</button>
       <div class="mobile-top-title">☽星尘观测站☾</div>
-      <div class="mobile-top-bar-spacer"></div>
+      <div class="mobile-top-links">
+        <a href="#" @click.prevent="openAuthPage('login')">登录</a>
+        <span>|</span>
+        <a href="#" @click.prevent="openAuthPage('register')">注册</a>
+        <span>|</span>
+        <button
+          class="mobile-user-link"
+          type="button"
+          @click="toggleAuthMenu"
+          :aria-expanded="isAuthMenuOpen"
+        >
+          {{ isLoggedIn ? currentUser.username : '未登录' }}
+        </button>
+      </div>
+      <div v-if="isAuthMenuOpen" class="mobile-auth-popover">
+        <div class="auth-status mobile-auth-status">
+          <template v-if="isLoggedIn">
+            当前登录：{{ currentUser.username }}（{{ currentUser.email }}）
+            <button type="button" @click="logout">退出登录</button>
+          </template>
+          <template v-else>
+            当前登录：未登录
+          </template>
+        </div>
+      </div>
     </div>
     <div class="mobile-overlay" :class="{ active: isSidebarOpen }" @click="closeSidebar"></div>
 
@@ -1111,9 +1147,43 @@ body {
   letter-spacing: 0.5px;
 }
 
-.mobile-top-bar-spacer {
-  width: 34px;
+.mobile-top-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+  color: #fff;
+  font-size: 12px;
+}
+
+.mobile-top-links a,
+.mobile-user-link {
+  color: #fff;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mobile-top-links a:hover,
+.mobile-user-link:hover {
+  color: #fff6b3;
+}
+
+.mobile-auth-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 8px;
+  z-index: 10000;
+  width: min(320px, calc(100vw - 16px));
+}
+
+.mobile-auth-status {
+  margin-top: 0;
+  text-align: left;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
 }
 
 .mobile-overlay {
