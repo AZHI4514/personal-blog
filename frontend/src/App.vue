@@ -1912,30 +1912,46 @@ a {
 /* ===== 7. 画廊页 ===== */
 .gallery-title {
   text-align: center;
+  margin: 0 0 16px;
+  padding: 5px 10px;
+  background: #e3f4f7;
+  border: 1px solid #79ACC5;
+  color: #800000;
+  font-size: 24px;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #fff;
 }
 .artwork-card {
   display: inline-block;
-  width: 200px;
+  width: 210px;
   margin: 10px;
-  background: #fff;
-  border: 4px solid #fff;
-  box-shadow: 3px 3px 8px rgba(0,0,0,0.15);
+  padding: 8px;
+  background: #fffff3;
+  border: 1px solid #b9a982;
+  box-shadow: inset 0 0 0 1px #fff, 2px 2px 0 rgba(0,0,0,0.12);
   text-align: center;
+  vertical-align: top;
 }
 .artwork-img {
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
   display: block;
+  border: 1px solid #777;
+  background: #fff;
 }
 .artwork-info {
-  padding: 6px 4px 8px;
-  background: #fff;
+  margin-top: 8px;
+  padding: 6px 8px 8px;
+  background: #fffef9;
+  border: 1px dotted #b9a982;
 }
 .artwork-author {
   font-weight: bold;
   font-size: 13px;
-  color: #444;
+  color: #0f5e6d;
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ===== 8. BBS/留言板页 ===== */
@@ -2340,83 +2356,104 @@ a {
 /* ===== 10. 音乐页 ===== */
 /* 音乐搜索框样式 */
 .music-search {
-  margin: 20px 0 10px;
+  margin: 18px auto 12px;
   text-align: center;
+  max-width: 900px;
+  padding: 10px 12px;
+  background: #fffff3;
+  border: 1px solid #b9a982;
+  box-shadow: inset 0 0 0 1px #fff, 2px 2px 0 rgba(0,0,0,0.12);
 }
 .search-input {
-  width: 300px;
-  padding: 8px 12px;
-  font-size: 14px;
-  border: 1px solid #aaa;
+  width: 320px;
+  padding: 5px 8px;
+  font-size: 13px;
+  border: 1px solid #8aa9b3;
   background: #fff;
-  font-family: inherit;
-  border-radius: 4px;
+  color: #333;
+  font-family: "MS PGothic", "SimSun", "宋体", monospace;
   outline: none;
-  transition: all 0.2s;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.15);
 }
 .search-input:focus {
-  border-color: #1abc9c;
-  box-shadow: 0 0 0 2px rgba(26,188,156,0.2);
+  border-color: #79ACC5;
+  box-shadow: inset 1px 1px 2px rgba(0,0,0,0.15), 0 0 0 1px #d8eef5;
 }
 .music-title {
   text-align: center;
+  margin: 0 0 16px;
+  padding: 5px 10px;
+  background: #e3f4f7;
+  border: 1px solid #79ACC5;
+  color: #800000;
+  font-size: 24px;
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 #fff;
 }
 .music-player {
-  background: #c0c0c0;
-  border: 3px outset #eee;
-  padding: 20px;
-  margin: 20px 0;
-  box-shadow: 5px 5px 0 rgba(0,0,0,0.1);
+  max-width: 900px;
+  margin: 18px auto;
+  padding: 16px 18px;
+  background: #fff8df;
+  background-image:
+    linear-gradient(rgba(121,172,197,0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(121,172,197,0.14) 1px, transparent 1px);
+  background-size: 16px 16px;
+  border: 3px double #79ACC5;
+  box-shadow: 4px 4px 0 rgba(72,122,138,0.22);
 }
 .player-controls {
   display: flex;
-  gap: 20px;
+  gap: 12px;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .ctrl-btn {
-  background: #c0c0c0;
-  border: 3px outset #fff;
-  padding: 8px 20px;
-  font-size: 16px;
+  background: #eee;
+  border: 2px outset #fff;
+  padding: 4px 14px;
+  font-size: 13px;
   font-weight: bold;
-}
-
-.ctrl-btn {
-  transition: all 0.2s ease;          /* 平滑过渡 */
   cursor: pointer;
-  outline: none;                      /* 去掉点击时的默认轮廓 */
+  color: #333;
+  font-family: "MS PGothic", "SimSun", "宋体", sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  outline: none;
 }
 
 .ctrl-btn:hover {
-  background-color: #ffaa66 !important;  /* 亮橙色背景 */
-  border-color: #ffaa66 !important;
-  color: #333 !important;
-  transform: scale(1.02);                /* 轻微放大 */
+  background-color: #fff6cc !important;
+  border-color: #fff !important;
+  color: #800000 !important;
+  transform: translateY(-1px);
 }
 
 .ctrl-btn:active {
-  transform: scale(0.96);                /* 缩小模拟按下 */
-  filter: brightness(0.9);              /* 略微变暗 */
+  border-style: inset;
+  transform: translateY(0);
+  filter: none;
 }
 
 .ctrl-btn:not(.playing) {
-  background-color: #c0c0c0;            /* 灰色背景，与原风格一致 */
-  border-color: #eee;
+  background-color: #eee;
+  border-color: #fff;
   color: #444;
 }
 .player-info {
   display: flex;
   gap: 20px;
   align-items: center;
-  background: #fff;
-  padding: 10px;
+  background: #fffef7;
+  padding: 10px 12px;
+  border: 1px solid #b9a982;
+  box-shadow: inset 0 0 0 1px #fff;
 }
 .player-cover {
   width: 80px;
   height: 80px;
   object-fit: cover;
-  border: 2px solid #333;
+  border: 1px solid #777;
+  background: #fff;
 }
 .player-details {
   flex: 1;
@@ -2424,51 +2461,99 @@ a {
 .player-title {
   font-weight: bold;
   font-size: 18px;
+  color: #800000;
 }
 .player-progress {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 8px;
+  color: #555;
+  font-family: "Courier New", monospace;
 }
 .progress-bar {
   flex: 1;
-  height: 6px;
+  height: 10px;
+}
+.music-list {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.music-list h3 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #0f5e6d;
+  margin: 0 0 10px;
+  padding: 4px 8px;
+  background: #e3f4f7;
+  border: 1px solid #79ACC5;
 }
 .music-table {
   width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border: 1px solid #000;
+  border-collapse: separate;
+  border-spacing: 1px;
+  background: #b9a982;
+  font-size: 13px;
 }
 .music-table th,
 .music-table td {
-  border: 1px solid #aaa;
-  padding: 8px;
+  border: none;
+  padding: 6px 8px;
   text-align: left;
+}
+.music-table th {
+  background: #e3f4f7;
+  color: #0f5e6d;
+  font-weight: bold;
+}
+
+.music-table td {
+  background: #fffef7;
+  color: #333;
 }
 tbody tr {
   cursor: pointer;
 }
 tbody tr:hover {
-  background: #FDFAC8;
+  background: transparent;
+}
+
+.music-table tbody tr:hover td {
+  background: #fff6cc;
 }
 .list-cover {
-  width: 40px;
-  height: 40px;
+  width: 46px;
+  height: 46px;
   object-fit: cover;
+  border: 1px solid #777;
+  background: #fff;
 }
 .play-btn {
-  background: #1abc9c;
-  border: none;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 16px;
+  background: #eee;
+  border: 2px outset #fff;
+  color: #333;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: bold;
+  font-family: "MS PGothic", "SimSun", "宋体", sans-serif;
+}
+.play-btn:hover {
+  background: #fff6cc;
+  color: #800000;
+}
+.play-btn:active {
+  border-style: inset;
 }
 .no-music {
+  max-width: 900px;
+  margin: 18px auto;
   text-align: center;
-  color: #888;
-  padding: 20px;
+  color: #800000;
+  padding: 16px 18px;
+  background: #fffef7;
+  border: 1px dotted #b9a982;
+  font-weight: bold;
 }
 
 /* ===== 11. 链接集页 ===== */
