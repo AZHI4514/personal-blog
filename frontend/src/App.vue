@@ -781,7 +781,7 @@ onMounted(() => {
           <div class="header-top">
             <img src="./assets/images/title_text.png" style="width: 1000px; height: 150px;" alt="标题文本图" class="title-img">
           </div>
-          <p class="welcome-msg">★★★ 欢迎光临！本网站是以二次元创作为主的插画交流网站 ★★★</p>
+          <p class="welcome-msg">★★★ 欢迎光临！本网站是以anime为主的插画交流网站 ★★★</p>
         </div>
         <div class="warning-bar">
             <div class="warning-bar-marquee-inner">
@@ -892,12 +892,12 @@ onMounted(() => {
         <div class="qa-list">
           <p><strong>Q1. 你的名字是？</strong><br>☽AZHI☾！</p>
           <p><strong>Q2. 你的网名是什么？</strong><br>azhi4514～</p>
-          <p><strong>Q3. 这是什么类型的网站？</strong><br>绘画！还会分享一些自己制作的喜欢的游戏！</p>
+          <p><strong>Q3. 这是什么类型的网站？</strong><br>插画！还会分享一些自己制作的喜欢的游戏！</p>
           <p><strong>Q4. 是什么促使你创建这个网站？</strong><br>因为想要一个能和神明大人们开心聊天的地方☆ 一个谁都不会感到寂寞的地方！</p>
           <p><strong>Q5. 你运营这个网站多久了？</strong><br>从26年开始！时间不久，我自己有时会把年数写错（笑）。</p>
           <p><strong>Q6. 网站名的由来？</strong><br>二次元聚集地「☽星尘观测站☾」♪ 月亮符号是重点！</p>
           <p><strong>Q7. 你的网站对你身边的人来说是秘密吗？</strong><br>不是的！</p>
-          <p><strong>Q8. 你会为达到一定访问量的人做些什么吗？</strong><br>目前还没有想好哦...</p>
+          <p><strong>Q8. 你会为达到一定访问量的人做些什么吗？</strong><br>目前还没有想好哦... 也许会做个特别的感谢页面？</p>
           <p><strong>Q9. 你多久查看一次自己的网站？</strong><br>每天都看！每时每刻！</p>
           <p><strong>Q10. 你目前使用的服务器好用吗？</strong><br>倒不是很讨厌它。</p>
           <p><strong>Q11. 你的服务器被封过吗？</strong><br>没有</p>
@@ -934,7 +934,7 @@ onMounted(() => {
           <p><strong>Q42. 你做搜索引擎优化吗？</strong><br>不做。太麻烦了~</p>
           <p><strong>Q43. 个人网站和公司或企业网站最大的区别是什么？</strong><br>要保持不让网站关闭！</p>
           <p><strong>Q44. 网站有英文版吗？</strong><br>没有，不过也许之后会做哦！</p>
-          <p><strong>Q45. 你使用Java吗？如果是，你用它们做什么？</strong><br>会用哦~ 在计划一个新项目... 不过这是秘密！</p>
+          <p><strong>Q45. 你使用AI吗？如果是，你用它们做什么？</strong><br>会用哦~ 在计划一个新项目... 不过这是秘密！</p>
           <p><strong>Q46. 网站上有什么访客可以参与的内容吗？</strong><br>BBS留言板！还有web拍手！</p>
           <p><strong>Q47. 你觉得自从开始运营这个网站以来，你的日常生活发生了变化吗？</strong><br>变得不寂寞了！＞＜</p>
           <p><strong>Q48. 你有自己的域名吗？</strong><br>没有</p>
