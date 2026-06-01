@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { recordVisitor, getTotalVisitors } from '@/api/visitor'
 import { sendClap } from '@/api/clap'
 import { createImage, deleteImage, getImages } from '@/api/gallery'
@@ -51,6 +51,14 @@ const adminDeleting = ref({
   musicId: null,
   imageId: null
 })
+const live2dCanvas = ref(null)
+const live2dError = ref('')
+
+let live2dSdk = null
+let live2dSubdelegate = null
+let live2dAnimationFrame = 0
+let live2dPointerActive = false
+let live2dPointerHandlers = null
 
 const handleClap = async () => {
   try {
@@ -663,7 +671,222 @@ const loadMusicList = async () => {
 }
 
 // 组件卸载前释放音频
+const ensureLive2dCoreLoaded = async () => {
+  if (window.Live2DCubismCore) {
+    return
+  }
+
+  const currentScript = document.querySelector('script[data-live2d-core="true"]')
+  if (currentScript) {
+    await new Promise((resolve, reject) => {
+      currentScript.addEventListener('load', resolve, { once: true })
+      currentScript.addEventListener('error', reject, { once: true })
+    })
+    return
+  }
+
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = '/Core/live2dcubismcore.js'
+    script.async = true
+    script.dataset.live2dCore = 'true'
+    script.addEventListener('load', resolve, { once: true })
+    script.addEventListener('error', () => reject(new Error('Live2D Core load failed')), { once: true })
+    document.head.appendChild(script)
+  })
+}
+
+const loadLive2dSdk = async () => {
+  if (live2dSdk) {
+    return live2dSdk
+  }
+
+  await ensureLive2dCoreLoaded()
+
+  const [
+    { CubismFramework, Option },
+    { LAppPal },
+    live2dDefine,
+    { LAppSubdelegate },
+    { LAppView }
+  ] = await Promise.all([
+    import('@framework/live2dcubismframework'),
+    import('@live2d-demo/lapppal'),
+    import('@live2d-demo/lappdefine'),
+    import('@live2d-demo/lappsubdelegate'),
+    import('@live2d-demo/lappview')
+  ])
+
+  if (!LAppView.prototype.__appLive2dPatched) {
+    LAppView.prototype.initializeSprite = function initializeSprite() {
+      if (this._programId == null) {
+        this._programId = this._subdelegate.createShader()
+      }
+    }
+    LAppView.prototype.__appLive2dPatched = true
+  }
+
+  if (!LAppSubdelegate.prototype.__appLive2dPatched) {
+    LAppSubdelegate.prototype.update = function update() {
+      if (this._glManager.getGl().isContextLost()) {
+        return
+      }
+
+      if (this._needResize) {
+        this.onResize()
+        this._needResize = false
+      }
+
+      const gl = this._glManager.getGl()
+
+      gl.clearColor(0.0, 0.0, 0.0, 0.0)
+      gl.enable(gl.DEPTH_TEST)
+      gl.depthFunc(gl.LEQUAL)
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+      gl.clearDepth(1.0)
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+
+      this._view.render()
+    }
+    LAppSubdelegate.prototype.__appLive2dPatched = true
+  }
+
+  live2dDefine.ModelDir.splice(0, live2dDefine.ModelDir.length, 'Yachiyo')
+
+  live2dSdk = {
+    CubismFramework,
+    Option,
+    LAppPal,
+    live2dDefine,
+    LAppSubdelegate
+  }
+
+  return live2dSdk
+}
+
+const detachLive2dPointerEvents = () => {
+  if (!live2dPointerHandlers) {
+    return
+  }
+
+  const { canvas, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = live2dPointerHandlers
+  canvas.removeEventListener('pointerdown', handlePointerDown)
+  window.removeEventListener('pointermove', handlePointerMove)
+  window.removeEventListener('pointerup', handlePointerUp)
+  window.removeEventListener('pointercancel', handlePointerCancel)
+  live2dPointerHandlers = null
+  live2dPointerActive = false
+}
+
+const attachLive2dPointerEvents = (subdelegate, canvas) => {
+  const handlePointerDown = (event) => {
+    live2dPointerActive = true
+    subdelegate.onPointBegan(event.pageX, event.pageY)
+  }
+  const handlePointerMove = (event) => {
+    if (!live2dPointerActive) {
+      return
+    }
+    subdelegate.onPointMoved(event.pageX, event.pageY)
+  }
+  const handlePointerUp = (event) => {
+    if (!live2dPointerActive) {
+      return
+    }
+    live2dPointerActive = false
+    subdelegate.onPointEnded(event.pageX, event.pageY)
+  }
+  const handlePointerCancel = (event) => {
+    live2dPointerActive = false
+    subdelegate.onTouchCancel(event.pageX, event.pageY)
+  }
+
+  canvas.addEventListener('pointerdown', handlePointerDown, { passive: true })
+  window.addEventListener('pointermove', handlePointerMove, { passive: true })
+  window.addEventListener('pointerup', handlePointerUp, { passive: true })
+  window.addEventListener('pointercancel', handlePointerCancel, { passive: true })
+
+  live2dPointerHandlers = {
+    canvas,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    handlePointerCancel
+  }
+}
+
+const destroyLive2d = () => {
+  if (live2dAnimationFrame) {
+    cancelAnimationFrame(live2dAnimationFrame)
+    live2dAnimationFrame = 0
+  }
+
+  detachLive2dPointerEvents()
+
+  if (live2dSubdelegate) {
+    live2dSubdelegate.release()
+    live2dSubdelegate = null
+  }
+
+  if (live2dSdk?.CubismFramework) {
+    live2dSdk.CubismFramework.dispose()
+    live2dSdk.CubismFramework.cleanUp()
+  }
+}
+
+const mountLive2d = async () => {
+  if (live2dSubdelegate || currentPage.value !== 'games') {
+    return
+  }
+
+  await nextTick()
+
+  if (!live2dCanvas.value) {
+    return
+  }
+
+  live2dError.value = ''
+
+  try {
+    const { CubismFramework, Option, LAppPal, live2dDefine, LAppSubdelegate } = await loadLive2dSdk()
+    const option = new Option()
+    option.logFunction = LAppPal.printMessage
+    option.loggingLevel = live2dDefine.CubismLoggingLevel
+
+    CubismFramework.startUp(option)
+    CubismFramework.initialize()
+
+    const subdelegate = new LAppSubdelegate()
+    const initialized = subdelegate.initialize(live2dCanvas.value)
+
+    if (!initialized) {
+      throw new Error('Live2D WebGL initialization failed')
+    }
+
+    live2dSubdelegate = subdelegate
+    attachLive2dPointerEvents(subdelegate, live2dCanvas.value)
+
+    const render = () => {
+      if (live2dSubdelegate !== subdelegate) {
+        return
+      }
+
+      LAppPal.updateTime()
+      subdelegate.update()
+      live2dAnimationFrame = requestAnimationFrame(render)
+    }
+
+    render()
+  } catch (error) {
+    console.error('Live2D initialization failed', error)
+    live2dError.value = 'Live2D load failed.'
+    destroyLive2d()
+  }
+}
+
 onBeforeUnmount(() => {
+  destroyLive2d()
   releaseAudio()
 })
 
@@ -720,6 +943,19 @@ onMounted(() => {
   loadGallery()
   loadPosts()
   loadMusicList()
+
+  if (currentPage.value === 'games') {
+    mountLive2d()
+  }
+})
+
+watch(currentPage, async (pageName) => {
+  if (pageName === 'games') {
+    await mountLive2d()
+    return
+  }
+
+  destroyLive2d()
 })
 </script>
 
@@ -765,7 +1001,7 @@ onMounted(() => {
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('gallery')">画廊</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('rules')">※使用规定</a><span>←必读</span></li>
-        <li><span class="menu-icon">◆</span> <span href="#"><del>游戏角</del></span>&nbsp;制作中</li>
+        <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('games')">游戏角</a>&nbsp;制作中</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('music')">音乐</a></li>
         <li v-if="isAdmin"><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('admin')">管理员</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('links')">链接集</a></li>
@@ -1005,6 +1241,7 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- 管理员结构 -->
       <div v-if="currentPage === 'admin' && isAdmin" class="bbs-container">
         <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>管理员<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
         <p class="admin-intro">仅管理员可见。这里可以维护音乐和画廊内容，表单格式分别对应 `Music.java` 与 `Image.java`。</p>
@@ -1127,6 +1364,14 @@ onMounted(() => {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 游戏角结构（开发中） -->
+      <div v-if="currentPage === 'games'" class="game-container">
+        <div class="live2d-stage">
+          <canvas ref="live2dCanvas" class="live2d-canvas"></canvas>
+          <div v-if="live2dError" class="live2d-error">{{ live2dError }}</div>
         </div>
       </div>
 
@@ -2355,6 +2600,52 @@ a {
   margin-top: 0;
 }
 
+.live2d-stage {
+  position: relative;
+  max-width: 960px;
+  min-height: 620px;
+  margin: 0 auto;
+  padding: 10px 12px 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #b9a982;
+  background: #fffff3;
+  box-shadow: inset 0 0 0 1px #fff, 2px 2px 0 rgba(0,0,0,0.12);
+}
+
+.game-container {
+  max-width: 984px;
+  margin: 0 auto;
+  padding: 10px 12px 8px;
+  background: #fff8df;
+  background-image:
+    linear-gradient(rgba(121,172,197,0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(121,172,197,0.16) 1px, transparent 1px);
+  background-size: 16px 16px;
+  border: 3px double #79ACC5;
+  box-shadow: 4px 4px 0 rgba(72,122,138,0.22);
+  box-sizing: border-box;
+}
+
+.live2d-canvas {
+  display: block;
+  width: 100%;
+  height: 620px;
+  touch-action: none;
+  background: transparent;
+}
+
+.live2d-error {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  color: #800000;
+  background: rgba(255,248,223,0.95);
+  border: 1px dotted #b9a982;
+  font-size: 12px;
+}
+
 /* ===== 10. 音乐页 ===== */
 /* 音乐搜索框样式 */
 .music-search {
@@ -2799,6 +3090,14 @@ tbody tr:hover {
     padding-left: 10px;
   }
 
+  .live2d-stage {
+    min-height: 420px;
+  }
+
+  .live2d-canvas {
+    height: 420px;
+  }
+
   .artwork-card {
     width: calc(50% - 24px);
     margin: 8px;
@@ -2991,6 +3290,14 @@ tbody tr:hover {
   .artwork-card {
     width: 100%;
     margin: 8px 0;
+  }
+
+  .live2d-stage {
+    min-height: 320px;
+  }
+
+  .live2d-canvas {
+    height: 320px;
   }
 
   .info-table {

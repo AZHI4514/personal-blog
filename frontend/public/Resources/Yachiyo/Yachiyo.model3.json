@@ -1,0 +1,55 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.moc3",
+    "Textures": [
+      "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.8192/texture_00.png",
+      "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.8192/texture_01.png"
+    ],
+    "Physics": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.physics3.json",
+    "DisplayInfo": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "tear",
+        "File": "\u773c\u6cea.exp3.json"
+      },
+      {
+        "Name": "smile_eye",
+        "File": "\u772f\u772f\u773c.exp3.json"
+      },
+      {
+        "Name": "smile",
+        "File": "\u7b11\u54aa\u54aa.exp3.json"
+      },
+      {
+        "Name": "blink",
+        "File": "\u6cea\u73e0.exp3.json"
+      }
+    ]
+  },
+  "HitAreas": [
+    {
+      "Id": "HitAreaHead",
+      "Name": "Head"
+    },
+    {
+      "Id": "HitAreaBody",
+      "Name": "Body"
+    }
+  ],
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": []
+    }
+  ]
+}

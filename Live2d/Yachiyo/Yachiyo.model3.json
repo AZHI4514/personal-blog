@@ -1,0 +1,55 @@
+{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "八千代辉夜姬.moc3",
+    "Textures": [
+      "八千代辉夜姬.8192/texture_00.png",
+      "八千代辉夜姬.8192/texture_01.png"
+    ],
+    "Physics": "八千代辉夜姬.physics3.json",
+    "DisplayInfo": "八千代辉夜姬.cdi3.json",
+    "Expressions": [
+      {
+        "Name": "tear",
+        "File": "眼泪.exp3.json"
+      },
+      {
+        "Name": "smile_eye",
+        "File": "眯眯眼.exp3.json"
+      },
+      {
+        "Name": "smile",
+        "File": "笑咪咪.exp3.json"
+      },
+      {
+        "Name": "blink",
+        "File": "眨眼.exp3.json"
+      }
+    ]
+  },
+  "HitAreas": [
+    {
+      "Id": "HitAreaHead",
+      "Name": "Head"
+    },
+    {
+      "Id": "HitAreaBody",
+      "Name": "Body"
+    }
+  ],
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": [
+        "ParamEyeLOpen",
+        "ParamEyeROpen"
+      ]
+    },
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": []
+    }
+  ]
+}
