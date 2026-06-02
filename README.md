@@ -15,6 +15,288 @@ personal-blog/
 └─ backend/
 ```
 
+## Live2D SDK Deployment and Motion Setup
+
+This project integrates Live2D directly inside `frontend/src/App.vue` without creating a separate Vue component.
+
+### 1. Directory layout used by this project
+
+Keep the original SDK and raw model files in the repo root:
+
+```text
+personal-blog/
+├─ Live2d/
+│  ├─ CubismSdkForWeb-5-r.5/
+│  └─ Yachiyo/
+├─ frontend/
+│  ├─ public/
+│  │  ├─ Core/
+│  │  ├─ Framework/Shaders/
+│  │  └─ Resources/Yachiyo/
+│  └─ src/App.vue
+```
+
+Runtime files actually used by the frontend:
+
+- `frontend/public/Core/live2dcubismcore.js`
+- `frontend/public/Framework/Shaders/WebGL/*`
+- `frontend/public/Resources/Yachiyo/*`
+
+Source files used during build:
+
+- `Live2d/CubismSdkForWeb-5-r.5/Framework/src/*`
+- `Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src/*`
+
+### 2. Copy the SDK runtime files into `frontend/public`
+
+The browser cannot load files from the repo root directly at runtime, so the runtime assets must be copied into `frontend/public`.
+
+Required copies:
+
+```text
+Live2d/CubismSdkForWeb-5-r.5/Core
+  -> frontend/public/Core
+
+Live2d/CubismSdkForWeb-5-r.5/Framework/Shaders
+  -> frontend/public/Framework/Shaders
+
+Live2d/Yachiyo
+  -> frontend/public/Resources/Yachiyo
+```
+
+The project also uses these sample background resources:
+
+```text
+Live2d/CubismSdkForWeb-5-r.5/Samples/Resources/back_class_normal.png
+  -> frontend/public/Resources/back_class_normal.png
+
+Live2d/CubismSdkForWeb-5-r.5/Samples/Resources/icon_gear.png
+  -> frontend/public/Resources/icon_gear.png
+```
+
+### 3. Configure Vite aliases for the official SDK source
+
+`frontend/vite.config.js` needs two aliases:
+
+- `@framework`
+  points to `../Live2d/CubismSdkForWeb-5-r.5/Framework/src`
+- `@live2d-demo`
+  points to `../Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src`
+
+This project imports the official sample classes directly from those paths instead of copying sample source code into `frontend/src`.
+
+It also enables:
+
+- `server.fs.allow: ['..']`
+
+That is required because the alias target is outside `frontend/`.
+
+### 4. How `App.vue` mounts the Live2D model
+
+The current integration is all inside `frontend/src/App.vue`.
+
+Main pieces:
+
+- Add `watch` and `nextTick` imports from Vue.
+- Add `live2dCanvas`, `live2dError`, and a few runtime variables for the SDK instance.
+- Add `ensureLive2dCoreLoaded()` to inject `/Core/live2dcubismcore.js` into the page only once.
+- Add `loadLive2dSdk()` to dynamically import:
+  - `@framework/live2dcubismframework`
+  - `@live2d-demo/lapppal`
+  - `@live2d-demo/lappdefine`
+  - `@live2d-demo/lappsubdelegate`
+  - `@live2d-demo/lappview`
+- Patch `LAppView.prototype.initializeSprite()` so the sample renderer does not depend on the original sample background setup.
+- Patch `LAppSubdelegate.prototype.update()` so `gl.clearColor(0, 0, 0, 0)` makes the canvas background transparent.
+- Force `live2dDefine.ModelDir` to use `['Yachiyo']`.
+- Mount the model only when `currentPage === 'games'`.
+- Destroy the renderer and animation frame when leaving the game page or unmounting the app.
+
+The template side only needs a canvas mount point:
+
+```html
+<div v-if="currentPage === 'games'" class="game-container">
+  <div class="live2d-stage">
+    <canvas ref="live2dCanvas" class="live2d-canvas"></canvas>
+    <div v-if="live2dError" class="live2d-error">{{ live2dError }}</div>
+  </div>
+</div>
+```
+
+Important page-name detail:
+
+- the menu uses `showPage('games')`
+- the page block must also use `currentPage === 'games'`
+
+If one side is `game` and the other side is `games`, the model will never mount.
+
+### 5. Why the model config file had to be fixed
+
+The runtime model config is:
+
+- `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
+
+In this project, the model initially showed only a black screen because the file names inside `Yachiyo.model3.json` were mojibake and did not match the real files on disk.
+
+The stable fix used here is to write the file names with Unicode escapes, for example:
+
+```json
+{
+  "Moc": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.moc3"
+}
+```
+
+That avoids path corruption while still resolving to the correct Chinese file names.
+
+If the model loads as an empty or black canvas again, check this file first.
+
+### 6. Current expression and motion behavior
+
+The current runtime behavior comes from the official sample manager logic:
+
+- dragging the model updates face/body follow behavior
+- tapping the `Head` hit area triggers a random expression
+- tapping the `Body` hit area tries to play a motion from the `TapBody` motion group
+
+Current Yachiyo model status:
+
+- expressions are configured
+- hit areas are configured
+- no motion files are currently listed in `Yachiyo.model3.json`
+
+That means:
+
+- head tap has visible effect
+- body tap may have no visible effect until motions are added
+
+### 7. How to configure expressions
+
+Expressions are declared in `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`:
+
+```json
+"Expressions": [
+  { "Name": "tear", "File": "\u773c\u6cea.exp3.json" },
+  { "Name": "smile_eye", "File": "\u772f\u772f\u773c.exp3.json" },
+  { "Name": "smile", "File": "\u7b11\u54aa\u54aa.exp3.json" },
+  { "Name": "blink", "File": "\u6cea\u73e0.exp3.json" }
+]
+```
+
+To add a new expression:
+
+1. Put the new `.exp3.json` file into `frontend/public/Resources/Yachiyo/`.
+2. Add a new entry under `"Expressions"` in `Yachiyo.model3.json`.
+3. Keep the file name exact. If the name contains Chinese characters, prefer Unicode escape form in JSON.
+
+The sample code already calls `setRandomExpression()`, so any new expression listed here becomes available to random head-tap switching.
+
+### 8. How to configure motions
+
+If you want body tap to play an animation, the model config must declare motion groups.
+
+Typical structure:
+
+```json
+"Motions": {
+  "Idle": [
+    { "File": "motions/idle_01.motion3.json" }
+  ],
+  "TapBody": [
+    { "File": "motions/tap_01.motion3.json" }
+  ]
+}
+```
+
+Steps:
+
+1. Put the `.motion3.json` files into `frontend/public/Resources/Yachiyo/` or a subfolder such as `motions/`.
+2. Add the `"Motions"` section to `Yachiyo.model3.json`.
+3. Make sure the group name matches the sample constant used by the runtime:
+   - `Idle`
+   - `TapBody`
+4. Reload the frontend.
+
+The current `App.vue` integration does not hardcode motion file names. It relies on the motion groups declared in `Yachiyo.model3.json`.
+
+### 9. How to change click behavior
+
+The click behavior is controlled by the official sample manager in:
+
+- `Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src/lapplive2dmanager.ts`
+
+Current sample logic:
+
+- `Head` -> `setRandomExpression()`
+- `Body` -> `startRandomMotion(MotionGroupTapBody, ...)`
+
+If you want different behavior, there are two main ways:
+
+1. Keep the sample logic and only change `Yachiyo.model3.json`
+   - best when you just want to add expressions or motion files
+2. Patch the imported sample class behavior in `App.vue`
+   - best when you want custom click rules or a completely different trigger flow
+
+Examples of custom changes:
+
+- change body tap from `TapBody` to `Idle`
+- always play one specific motion instead of random
+- map head tap to a fixed expression such as `smile`
+- disable tap-triggered motion entirely
+
+### 10. Transparent background and page frame
+
+The transparent canvas effect in this project is not a CSS-only change.
+
+Two things are required:
+
+1. CSS:
+   - `.live2d-canvas { background: transparent; }`
+2. WebGL clear alpha:
+   - `gl.clearColor(0.0, 0.0, 0.0, 0.0)`
+
+If only CSS is transparent but WebGL still clears with alpha `1`, the model area will still look black.
+
+The surrounding frame is styled in `App.vue` to match the blog's BBS/post-form visual language:
+
+- outer wrapper: `.game-container`
+- inner panel: `.live2d-stage`
+
+### 11. Troubleshooting checklist
+
+If the model does not appear:
+
+1. Confirm the page condition is `currentPage === 'games'`.
+2. Confirm `frontend/public/Core/live2dcubismcore.js` exists.
+3. Confirm `frontend/public/Framework/Shaders/WebGL/*` exists.
+4. Confirm `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` exists.
+5. Confirm the file names inside `Yachiyo.model3.json` exactly match the real files.
+6. Confirm the browser network panel can load:
+   - `/Core/live2dcubismcore.js`
+   - `/Resources/Yachiyo/Yachiyo.model3.json`
+   - referenced `.moc3`, `.physics3.json`, `.exp3.json`, textures
+7. If you see only a black rectangle, check the model JSON paths first.
+8. If you see the model but body click does nothing, check whether the `"Motions"` section exists.
+
+### 12. Recommended workflow when replacing the model
+
+When switching from `Yachiyo` to another model:
+
+1. Copy the new model folder into `frontend/public/Resources/<ModelName>/`.
+2. Make sure the `<ModelName>.model3.json` file is present.
+3. Fix any mojibake file names in the JSON.
+4. Update the `ModelDir` override in `App.vue`:
+
+```js
+live2dDefine.ModelDir.splice(0, live2dDefine.ModelDir.length, '<ModelName>')
+```
+
+5. Rebuild:
+
+```bash
+cd frontend
+npm run build
+```
+
 ## Local Development
 
 ### 1. 进入服务器并安装环境
