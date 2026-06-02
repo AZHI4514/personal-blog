@@ -57,7 +57,6 @@ const live2dError = ref('')
 let live2dSdk = null
 let live2dSubdelegate = null
 let live2dAnimationFrame = 0
-let live2dPointerActive = false
 let live2dPointerHandlers = null
 
 const handleClap = async () => {
@@ -708,13 +707,15 @@ const loadLive2dSdk = async () => {
     { LAppPal },
     live2dDefine,
     { LAppSubdelegate },
-    { LAppView }
+    { LAppView },
+    { LAppLive2DManager }
   ] = await Promise.all([
     import('@framework/live2dcubismframework'),
     import('@live2d-demo/lapppal'),
     import('@live2d-demo/lappdefine'),
     import('@live2d-demo/lappsubdelegate'),
-    import('@live2d-demo/lappview')
+    import('@live2d-demo/lappview'),
+    import('@live2d-demo/lapplive2dmanager')
   ])
 
   if (!LAppView.prototype.__appLive2dPatched) {
@@ -752,6 +753,16 @@ const loadLive2dSdk = async () => {
     LAppSubdelegate.prototype.__appLive2dPatched = true
   }
 
+  if (!LAppLive2DManager.prototype.__appLive2dTapPatched) {
+    LAppLive2DManager.prototype.onTap = function onTap() {
+      const model = this._models[0]
+      if (model) {
+        model.setRandomExpression()
+      }
+    }
+    LAppLive2DManager.prototype.__appLive2dTapPatched = true
+  }
+
   live2dDefine.ModelDir.splice(0, live2dDefine.ModelDir.length, 'Yachiyo')
 
   live2dSdk = {
@@ -772,40 +783,59 @@ const detachLive2dPointerEvents = () => {
 
   const { canvas, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = live2dPointerHandlers
   canvas.removeEventListener('pointerdown', handlePointerDown)
-  window.removeEventListener('pointermove', handlePointerMove)
-  window.removeEventListener('pointerup', handlePointerUp)
-  window.removeEventListener('pointercancel', handlePointerCancel)
+  canvas.removeEventListener('pointermove', handlePointerMove)
+  canvas.removeEventListener('pointerup', handlePointerUp)
+  canvas.removeEventListener('pointercancel', handlePointerCancel)
+  canvas.removeEventListener('pointerleave', handlePointerCancel)
   live2dPointerHandlers = null
-  live2dPointerActive = false
 }
 
 const attachLive2dPointerEvents = (subdelegate, canvas) => {
+  const updateLive2dCursor = (event) => {
+    const rect = canvas.getBoundingClientRect()
+    const localX = event.clientX - rect.left
+    const localY = event.clientY - rect.top
+
+    if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
+      subdelegate.getLive2DManager().onDrag(0.0, 0.0)
+      return
+    }
+
+    const posX = localX * window.devicePixelRatio
+    const posY = localY * window.devicePixelRatio
+    const view = subdelegate._view
+
+    if (!view) {
+      return
+    }
+
+    const viewX = view.transformViewX(posX)
+    const viewY = view.transformViewY(posY)
+    subdelegate.getLive2DManager().onDrag(viewX, viewY)
+  }
+
   const handlePointerDown = (event) => {
-    live2dPointerActive = true
     subdelegate.onPointBegan(event.pageX, event.pageY)
+    updateLive2dCursor(event)
   }
   const handlePointerMove = (event) => {
-    if (!live2dPointerActive) {
-      return
-    }
-    subdelegate.onPointMoved(event.pageX, event.pageY)
+    updateLive2dCursor(event)
   }
   const handlePointerUp = (event) => {
-    if (!live2dPointerActive) {
-      return
-    }
-    live2dPointerActive = false
     subdelegate.onPointEnded(event.pageX, event.pageY)
   }
   const handlePointerCancel = (event) => {
-    live2dPointerActive = false
-    subdelegate.onTouchCancel(event.pageX, event.pageY)
+    subdelegate.getLive2DManager().onDrag(0.0, 0.0)
+    if (event?.pageX != null && event?.pageY != null) {
+      subdelegate.onTouchCancel(event.pageX, event.pageY)
+    }
   }
 
   canvas.addEventListener('pointerdown', handlePointerDown, { passive: true })
-  window.addEventListener('pointermove', handlePointerMove, { passive: true })
-  window.addEventListener('pointerup', handlePointerUp, { passive: true })
-  window.addEventListener('pointercancel', handlePointerCancel, { passive: true })
+  canvas.addEventListener('pointermove', handlePointerMove, { passive: true })
+  canvas.addEventListener('pointerup', handlePointerUp, { passive: true })
+  canvas.addEventListener('pointercancel', handlePointerCancel, { passive: true })
+  canvas.addEventListener('pointerleave', handlePointerCancel, { passive: true })
 
   live2dPointerHandlers = {
     canvas,

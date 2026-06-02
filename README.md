@@ -15,13 +15,13 @@ personal-blog/
 └─ backend/
 ```
 
-## Live2D SDK Deployment and Motion Setup
+## Live2D SDK 部署与动作设置
 
-This project integrates Live2D directly inside `frontend/src/App.vue` without creating a separate Vue component.
+这个项目将 Live2D 直接集成在 `frontend/src/App.vue` 中，没有额外创建单独的 Vue 组件。
 
-### 1. Directory layout used by this project
+### 1. 本项目使用的目录结构
 
-Keep the original SDK and raw model files in the repo root:
+将原始 SDK 和原始模型文件保留在仓库根目录：
 
 ```text
 personal-blog/
@@ -36,22 +36,22 @@ personal-blog/
 │  └─ src/App.vue
 ```
 
-Runtime files actually used by the frontend:
+前端运行时实际使用的文件：
 
 - `frontend/public/Core/live2dcubismcore.js`
 - `frontend/public/Framework/Shaders/WebGL/*`
 - `frontend/public/Resources/Yachiyo/*`
 
-Source files used during build:
+构建时使用的源码文件：
 
 - `Live2d/CubismSdkForWeb-5-r.5/Framework/src/*`
 - `Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src/*`
 
-### 2. Copy the SDK runtime files into `frontend/public`
+### 2. 将 SDK 运行时文件复制到 `frontend/public`
 
-The browser cannot load files from the repo root directly at runtime, so the runtime assets must be copied into `frontend/public`.
+浏览器在运行时不能直接从仓库根目录加载文件，所以必须把运行时资源复制到 `frontend/public`。
 
-Required copies:
+必须复制的内容：
 
 ```text
 Live2d/CubismSdkForWeb-5-r.5/Core
@@ -64,7 +64,7 @@ Live2d/Yachiyo
   -> frontend/public/Resources/Yachiyo
 ```
 
-The project also uses these sample background resources:
+本项目还使用了这两个 sample 背景资源：
 
 ```text
 Live2d/CubismSdkForWeb-5-r.5/Samples/Resources/back_class_normal.png
@@ -74,45 +74,45 @@ Live2d/CubismSdkForWeb-5-r.5/Samples/Resources/icon_gear.png
   -> frontend/public/Resources/icon_gear.png
 ```
 
-### 3. Configure Vite aliases for the official SDK source
+### 3. 为官方 SDK 源码配置 Vite 别名
 
-`frontend/vite.config.js` needs two aliases:
+`frontend/vite.config.js` 需要两个别名：
 
 - `@framework`
-  points to `../Live2d/CubismSdkForWeb-5-r.5/Framework/src`
+  指向 `../Live2d/CubismSdkForWeb-5-r.5/Framework/src`
 - `@live2d-demo`
-  points to `../Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src`
+  指向 `../Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src`
 
-This project imports the official sample classes directly from those paths instead of copying sample source code into `frontend/src`.
+这个项目直接从这些路径导入官方 sample 类，而不是把 sample 源码复制到 `frontend/src` 里。
 
-It also enables:
+同时还启用了：
 
 - `server.fs.allow: ['..']`
 
-That is required because the alias target is outside `frontend/`.
+这是必须的，因为别名目标目录位于 `frontend/` 外部。
 
-### 4. How `App.vue` mounts the Live2D model
+### 4. `App.vue` 是如何挂载 Live2D 模型的
 
-The current integration is all inside `frontend/src/App.vue`.
+当前接入逻辑全部写在 `frontend/src/App.vue` 中。
 
-Main pieces:
+主要部分如下：
 
-- Add `watch` and `nextTick` imports from Vue.
-- Add `live2dCanvas`, `live2dError`, and a few runtime variables for the SDK instance.
-- Add `ensureLive2dCoreLoaded()` to inject `/Core/live2dcubismcore.js` into the page only once.
-- Add `loadLive2dSdk()` to dynamically import:
+- 从 Vue 中增加 `watch` 和 `nextTick` 导入。
+- 增加 `live2dCanvas`、`live2dError`，以及若干 SDK 运行时变量。
+- 增加 `ensureLive2dCoreLoaded()`，用于只向页面注入一次 `/Core/live2dcubismcore.js`。
+- 增加 `loadLive2dSdk()`，用于动态导入：
   - `@framework/live2dcubismframework`
   - `@live2d-demo/lapppal`
   - `@live2d-demo/lappdefine`
   - `@live2d-demo/lappsubdelegate`
   - `@live2d-demo/lappview`
-- Patch `LAppView.prototype.initializeSprite()` so the sample renderer does not depend on the original sample background setup.
-- Patch `LAppSubdelegate.prototype.update()` so `gl.clearColor(0, 0, 0, 0)` makes the canvas background transparent.
-- Force `live2dDefine.ModelDir` to use `['Yachiyo']`.
-- Mount the model only when `currentPage === 'games'`.
-- Destroy the renderer and animation frame when leaving the game page or unmounting the app.
+- Patch `LAppView.prototype.initializeSprite()`，让 sample 渲染器不再依赖原 sample 的背景初始化逻辑。
+- Patch `LAppSubdelegate.prototype.update()`，让 `gl.clearColor(0, 0, 0, 0)` 把画布背景清成透明。
+- 强制将 `live2dDefine.ModelDir` 设为 `['Yachiyo']`。
+- 只在 `currentPage === 'games'` 时挂载模型。
+- 在离开游戏页或卸载应用时销毁渲染器和动画帧。
 
-The template side only needs a canvas mount point:
+模板侧只需要一个 canvas 挂载点：
 
 ```html
 <div v-if="currentPage === 'games'" class="game-container">
@@ -123,22 +123,22 @@ The template side only needs a canvas mount point:
 </div>
 ```
 
-Important page-name detail:
+一个很重要的页面名细节：
 
-- the menu uses `showPage('games')`
-- the page block must also use `currentPage === 'games'`
+- 菜单点击使用的是 `showPage('games')`
+- 页面区块判断也必须使用 `currentPage === 'games'`
 
-If one side is `game` and the other side is `games`, the model will never mount.
+如果一边写成 `game`，另一边写成 `games`，模型就永远不会挂载。
 
-### 5. Why the model config file had to be fixed
+### 5. 为什么必须修正模型配置文件
 
-The runtime model config is:
+运行时使用的模型配置文件是：
 
 - `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
 
-In this project, the model initially showed only a black screen because the file names inside `Yachiyo.model3.json` were mojibake and did not match the real files on disk.
+在这个项目里，模型一开始只显示黑屏，是因为 `Yachiyo.model3.json` 里的文件名是乱码，和磁盘上的真实文件名不一致。
 
-The stable fix used here is to write the file names with Unicode escapes, for example:
+这里采用的稳定修复方式，是把文件名写成 Unicode 转义形式，例如：
 
 ```json
 {
@@ -146,32 +146,28 @@ The stable fix used here is to write the file names with Unicode escapes, for ex
 }
 ```
 
-That avoids path corruption while still resolving to the correct Chinese file names.
+这样既能避免路径因为编码问题损坏，又能正确解析到真实的中文文件名。
 
-If the model loads as an empty or black canvas again, check this file first.
+如果以后模型再次变成空白画布或黑画布，优先先检查这个文件。
 
-### 6. Current expression and motion behavior
+### 6. 当前表情行为
 
-The current runtime behavior comes from the official sample manager logic:
+当前项目中的运行时行为如下：
 
-- dragging the model updates face/body follow behavior
-- tapping the `Head` hit area triggers a random expression
-- tapping the `Body` hit area tries to play a motion from the `TapBody` motion group
+- 鼠标在 Live2D 画布上移动时，会更新角色的面部和身体跟随行为
+- 鼠标离开画布时，会把跟随目标重置回中心
+- 点击画布时，会触发一次随机面部表情
 
-Current Yachiyo model status:
+当前 Yachiyo 模型的状态：
 
-- expressions are configured
-- hit areas are configured
-- no motion files are currently listed in `Yachiyo.model3.json`
+- 已配置表情
+- 本项目中已刻意禁用身体动作播放
 
-That means:
+这意味着角色现在只保留“指针跟随”和“表情切换”两类行为。
 
-- head tap has visible effect
-- body tap may have no visible effect until motions are added
+### 7. 如何配置表情
 
-### 7. How to configure expressions
-
-Expressions are declared in `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`:
+表情定义写在 `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` 中：
 
 ```json
 "Expressions": [
@@ -182,115 +178,120 @@ Expressions are declared in `frontend/public/Resources/Yachiyo/Yachiyo.model3.js
 ]
 ```
 
-To add a new expression:
+如果要新增一个表情：
 
-1. Put the new `.exp3.json` file into `frontend/public/Resources/Yachiyo/`.
-2. Add a new entry under `"Expressions"` in `Yachiyo.model3.json`.
-3. Keep the file name exact. If the name contains Chinese characters, prefer Unicode escape form in JSON.
+1. 把新的 `.exp3.json` 文件放进 `frontend/public/Resources/Yachiyo/`。
+2. 在 `Yachiyo.model3.json` 的 `"Expressions"` 下增加一条新记录。
+3. 文件名必须完全一致；如果文件名包含中文，推荐在 JSON 里使用 Unicode 转义形式。
 
-The sample code already calls `setRandomExpression()`, so any new expression listed here becomes available to random head-tap switching.
+由于 sample 代码已经调用了 `setRandomExpression()`，所以这里新增的表情会自动加入到随机点击切换中。
 
-### 8. How to configure motions
+### 8. 鼠标跟随是如何实现的
 
-If you want body tap to play an animation, the model config must declare motion groups.
+鼠标跟随逻辑写在 `frontend/src/App.vue` 中。
 
-Typical structure:
+本项目的实现步骤如下：
 
-```json
-"Motions": {
-  "Idle": [
-    { "File": "motions/idle_01.motion3.json" }
-  ],
-  "TapBody": [
-    { "File": "motions/tap_01.motion3.json" }
-  ]
-}
-```
+1. 保留官方 `LAppSubdelegate` 渲染器。
+2. 把 `pointermove` 绑定到 Live2D canvas，而不是只在拖拽时才追踪。
+3. 将 canvas 内部局部坐标换算成 Live2D 视图坐标。
+4. 在每次移动事件中调用 `subdelegate.getLive2DManager().onDrag(viewX, viewY)`。
+5. 在 `pointerleave` 时调用 `onDrag(0.0, 0.0)`，让模型回到中性位置。
 
-Steps:
+一个重要细节：
 
-1. Put the `.motion3.json` files into `frontend/public/Resources/Yachiyo/` or a subfolder such as `motions/`.
-2. Add the `"Motions"` section to `Yachiyo.model3.json`.
-3. Make sure the group name matches the sample constant used by the runtime:
-   - `Idle`
-   - `TapBody`
-4. Reload the frontend.
+- 原始 sample 只会在指针被捕获时更新拖拽状态
+- 这个项目重写了这部分行为，所以跟随是在悬停时生效，而不只是拖拽时生效
 
-The current `App.vue` integration does not hardcode motion file names. It relies on the motion groups declared in `Yachiyo.model3.json`.
+### 9. 点击触发随机表情是如何实现的
 
-### 9. How to change click behavior
-
-The click behavior is controlled by the official sample manager in:
+点击行为是基于官方 sample manager 进行 patch 的，原始位置在：
 
 - `Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src/lapplive2dmanager.ts`
 
-Current sample logic:
+这个项目重写了 `LAppLive2DManager.prototype.onTap()`，让它只做一件事：
 
-- `Head` -> `setRandomExpression()`
-- `Body` -> `startRandomMotion(MotionGroupTapBody, ...)`
+- 调用 `model.setRandomExpression()`
 
-If you want different behavior, there are two main ways:
+这也同时移除了 sample 里原本“点击身体触发动作”的行为。
 
-1. Keep the sample logic and only change `Yachiyo.model3.json`
-   - best when you just want to add expressions or motion files
-2. Patch the imported sample class behavior in `App.vue`
-   - best when you want custom click rules or a completely different trigger flow
+实现步骤如下：
 
-Examples of custom changes:
+1. 在 `App.vue` 中导入 `@live2d-demo/lapplive2dmanager`。
+2. Patch `LAppLive2DManager.prototype.onTap`。
+3. 在 patch 后的函数中取出 `this._models[0]`。
+4. 如果模型存在，则调用 `setRandomExpression()`。
+5. 不再调用 `startRandomMotion(...)`。
 
-- change body tap from `TapBody` to `Idle`
-- always play one specific motion instead of random
-- map head tap to a fixed expression such as `smile`
-- disable tap-triggered motion entirely
+### 10. 如何新增或修改点击表情
 
-### 10. Transparent background and page frame
+当前可用于随机点击切换的表情仍然来自：
 
-The transparent canvas effect in this project is not a CSS-only change.
+- `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
 
-Two things are required:
+如果你在 `"Expressions"` 下继续新增表情条目，随机点击行为会自动把它们包含进去。
+
+如果你不想随机，而是想固定切换到某个表情，可以把：
+
+```js
+model.setRandomExpression()
+```
+
+替换成：
+
+```js
+model.setExpression('smile')
+```
+
+### 11. 透明背景与页面外框
+
+这个项目里的透明画布效果，不是只改 CSS 就够了。
+
+必须同时满足两件事：
 
 1. CSS:
    - `.live2d-canvas { background: transparent; }`
 2. WebGL clear alpha:
    - `gl.clearColor(0.0, 0.0, 0.0, 0.0)`
 
-If only CSS is transparent but WebGL still clears with alpha `1`, the model area will still look black.
+如果只有 CSS 是透明的，但 WebGL 仍然用 alpha `1` 清屏，那么模型区域看起来还是黑的。
 
-The surrounding frame is styled in `App.vue` to match the blog's BBS/post-form visual language:
+外围框体样式同样写在 `App.vue` 中，用来和博客的 BBS / post-form 视觉风格保持一致：
 
-- outer wrapper: `.game-container`
-- inner panel: `.live2d-stage`
+- 外层包裹：`.game-container`
+- 内层面板：`.live2d-stage`
 
-### 11. Troubleshooting checklist
+### 12. 排错清单
 
-If the model does not appear:
+如果模型没有显示：
 
-1. Confirm the page condition is `currentPage === 'games'`.
-2. Confirm `frontend/public/Core/live2dcubismcore.js` exists.
-3. Confirm `frontend/public/Framework/Shaders/WebGL/*` exists.
-4. Confirm `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` exists.
-5. Confirm the file names inside `Yachiyo.model3.json` exactly match the real files.
-6. Confirm the browser network panel can load:
+1. 确认页面判断条件是 `currentPage === 'games'`。
+2. 确认 `frontend/public/Core/live2dcubismcore.js` 存在。
+3. 确认 `frontend/public/Framework/Shaders/WebGL/*` 存在。
+4. 确认 `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` 存在。
+5. 确认 `Yachiyo.model3.json` 里的文件名与真实文件名完全一致。
+6. 确认浏览器网络面板能够成功加载：
    - `/Core/live2dcubismcore.js`
    - `/Resources/Yachiyo/Yachiyo.model3.json`
-   - referenced `.moc3`, `.physics3.json`, `.exp3.json`, textures
-7. If you see only a black rectangle, check the model JSON paths first.
-8. If you see the model but body click does nothing, check whether the `"Motions"` section exists.
+   - 以及它引用的 `.moc3`、`.physics3.json`、`.exp3.json`、贴图文件
+7. 如果你只看到黑色矩形，优先检查模型 JSON 里的路径。
+8. 如果鼠标跟随失效，检查 canvas 的 `pointermove` 处理器是否还在调用 `onDrag(viewX, viewY)`。
+9. 如果点击后脸部表情没有变化，检查 `"Expressions"` 区段是否存在，以及 `onTap()` 是否仍然被 patch 为 `setRandomExpression()`。
 
-### 12. Recommended workflow when replacing the model
+### 13. 替换模型时推荐的流程
 
-When switching from `Yachiyo` to another model:
+当你要把 `Yachiyo` 替换成其他模型时：
 
-1. Copy the new model folder into `frontend/public/Resources/<ModelName>/`.
-2. Make sure the `<ModelName>.model3.json` file is present.
-3. Fix any mojibake file names in the JSON.
-4. Update the `ModelDir` override in `App.vue`:
+1. 把新模型文件夹复制到 `frontend/public/Resources/<ModelName>/`。
+2. 确保 `<ModelName>.model3.json` 文件存在。
+3. 修正 JSON 中所有乱码文件名。
+4. 更新 `App.vue` 中对 `ModelDir` 的覆盖：
 
 ```js
 live2dDefine.ModelDir.splice(0, live2dDefine.ModelDir.length, '<ModelName>')
 ```
 
-5. Rebuild:
+5. 重新构建：
 
 ```bash
 cd frontend
