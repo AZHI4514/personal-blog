@@ -387,6 +387,126 @@ systemctl status personal-blog-back
 看日志：
 
 journalctl -u personal-blog-back -f
+
+## 游戏角 Agent 配置说明（新增）
+
+本次接入只改了两个位置：
+
+1. 前端只在 `frontend/src/App.vue` 的“游戏角”页面内嵌了 agent 界面，没有新建组件，也没有改动其他页面的结构。
+2. 后端新增了独立的 `room-agent` 接口，用来给游戏角提供房间状态、长期记忆和 MCP 白名单调用能力，不影响原有的图片、音乐、BBS、用户等接口。
+
+### 前端是怎么接入的
+
+游戏角页面现在包含这几部分：
+
+- Live2D 展示区：继续复用原来游戏角里的 Live2D 逻辑。
+- 对话区：可以直接输入文本，也可以附带图片。
+- 房间状态卡：会从后端读取当前房间状态并显示在 Live2D 区域上。
+- 音乐信息卡：直接复用现有的音乐列表数据，不新增音乐表。
+- 设置面板：也直接写在 `App.vue` 里，没有拆组件。
+
+设置面板里目前可配置：
+
+- `API URL`
+- `API Key`
+- `模型名`
+- `视觉模式`
+- 是否启用长期记忆
+- 是否启用 MCP
+- 角色知识库条目
+
+这些前端设置目前都保存在浏览器本地 `localStorage` 中，使用的 key 是：
+
+- `roomLLMSettings`
+- `roomMemorySettings`
+- `roomMCPSettings`
+- `roomKnowledgeSettings`
+- `roomChatHistory`
+
+其中 `API Key` 保留为空，后续在游戏角页面的设置面板里填写即可。
+
+### 后端是怎么接入的
+
+本次新增了两个后端文件：
+
+- `backend/src/main/java/com/azhi/controller/RoomAgentController.java`
+- `backend/src/main/java/com/azhi/service/RoomAgentService.java`
+
+并且只额外放开了 `PATCH` 跨域方法，方便记忆接口更新使用。
+
+当前提供的接口如下：
+
+- `GET /room-agent/world`
+- `GET /room-agent/memory`
+- `POST /room-agent/memory`
+- `PATCH /room-agent/memory/{id}`
+- `DELETE /room-agent/memory/{id}`
+- `POST /room-agent/mcp/call`
+
+### 长期记忆现在的实现方式
+
+按照你的要求，这次**没有新增数据库表**。
+
+当前长期记忆是后端内存版实现，特点是：
+
+- 不需要你改数据库
+- 服务重启后记忆会丢失
+- 已经保留了后续替换成数据库版本的接口边界
+
+也就是说，你现在可以先把功能跑通；如果以后你想把长期记忆持久化到 MySQL，再单独补表即可。
+
+如果后续你决定改成数据库版，我再给你正式的建表 SQL，你建完我再帮你切过去。
+
+### MCP 现在的实现方式
+
+当前 MCP 接口是白名单占位实现，只允许这两个工具名：
+
+- `understand_image`
+- `web_search`
+
+这样做是为了不破坏你原来的后端结构，也避免把敏感调用直接开放到前端。
+
+### LLM 接入方式
+
+当前默认支持两种模式：
+
+1. 前端直接请求你填写的模型接口地址。
+2. 勾选“使用服务端代理”后，走 `/api/chat` 代理模式。
+
+注意：
+
+- 这次我没有帮你新增 `/api/chat` 后端代理接口。
+- 如果你后面想走代理模式，需要你现有后端再补一个代理接口，或者继续使用直连模式。
+
+所以你现在最简单的用法是：
+
+1. 打开“游戏角”
+2. 打开设置面板
+3. 填入模型的 `API URL`
+4. 填入你自己的 `API Key`
+5. 保存后直接聊天
+
+### 这次接入没有改动的内容
+
+为了避免破坏你原有结构，这次没有动这些部分：
+
+- 没有新建前端组件
+- 没有改你的路由结构
+- 没有改图片页、音乐页、BBS 页、规则页等其他页面
+- 没有改你现有数据库表
+- 没有替换你原来的音乐、Live2D、用户登录等已有逻辑
+
+### 你后续需要自己补的内容
+
+要让这个 agent 真正接入大模型，你只需要补这一个核心信息：
+
+- 在游戏角设置面板里填写真实的 `API URL` 和 `API Key`
+
+如果你以后想继续增强，可以再做这些扩展：
+
+- 把长期记忆从内存版改成 MySQL 持久化
+- 新增后端 `/api/chat` 代理接口
+- 把 `MCP` 的占位返回替换成真实工具调用
 ### 9. 配置 Nginx
 
 cat >/etc/nginx/sites-available/personal-blog <<'EOF'
