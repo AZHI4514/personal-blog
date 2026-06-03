@@ -1512,6 +1512,13 @@ function showPage(pageName) {
   if (pageName === 'admin' && !isAdmin.value) {
     return
   }
+  if (pageName === 'games' && !isLoggedIn.value) {
+    authMode.value = 'login'
+    currentPage.value = 'bbs'
+    isAuthMenuOpen.value = false
+    closeSidebar()
+    return
+  }
   currentPage.value = pageName
   isAuthMenuOpen.value = false
   closeSidebar()
@@ -1999,7 +2006,7 @@ watch(currentUser, (user) => {
         </div>
       </div>
 
-      <!-- 游戏角结构（开发中） -->
+      <!-- 游戏角结构 -->
       <div v-show="currentPage === 'games'" class="game-container">
         <div class="game-toolbar">
           <div class="game-toolbar-left">
@@ -2213,7 +2220,7 @@ watch(currentUser, (user) => {
           </div>
         </div>
 
-        <div v-if="!isLoggedIn" class="login-required">登陆后查看帖子~~~</div>
+        <div v-if="!isLoggedIn" class="login-required">登陆后体验更多功能~~~</div>
 
         <template v-else>
           <div class="post-form">
