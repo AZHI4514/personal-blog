@@ -1051,7 +1051,7 @@ const fallbackGameReply = (message, image) => {
   return message ? `我听到了：${message}` : '我在这里。'
 }
 
-const extractGameReply = (data) => data?.reply || data?.output_text || data?.choices?.[0]?.message?.content || ''
+const extractGameReply = (data) => data?.data?.reply || data?.reply || data?.data?.output_text || data?.output_text || data?.data?.choices?.[0]?.message?.content || data?.choices?.[0]?.message?.content || ''
 
 const rememberGameConversation = async (userMessage, assistantReply) => {
   if (gameMemorySettings.value.enabled === false) return
