@@ -170,9 +170,8 @@ const logout = async () => {
   posts.value = []
   resetForm()
   resetAdminForms()
-  if (currentPage.value === 'admin') {
-    currentPage.value = 'home'
-  }
+  authMode.value = 'login'
+  currentPage.value = 'bbs'
 }
 
 // ==================== BBS 统一表单 ====================
