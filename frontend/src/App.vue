@@ -94,6 +94,7 @@ let live2dSdk = null
 let live2dSubdelegate = null
 let live2dAnimationFrame = 0
 let live2dPointerHandlers = null
+let live2dFrameworkReady = false
 
 const DEFAULT_GAME_KNOWLEDGE = [
   {
@@ -1343,32 +1344,24 @@ const detachLive2dPointerEvents = () => {
 
   const { canvas, handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel } = live2dPointerHandlers
   canvas.removeEventListener('pointerdown', handlePointerDown)
-  canvas.removeEventListener('pointermove', handlePointerMove)
-  canvas.removeEventListener('pointerup', handlePointerUp)
-  canvas.removeEventListener('pointercancel', handlePointerCancel)
-  canvas.removeEventListener('pointerleave', handlePointerCancel)
+  window.removeEventListener('pointermove', handlePointerMove)
+  window.removeEventListener('pointerup', handlePointerUp)
+  window.removeEventListener('pointercancel', handlePointerCancel)
   live2dPointerHandlers = null
 }
 
 const attachLive2dPointerEvents = (subdelegate, canvas) => {
   const updateLive2dCursor = (event) => {
-    const rect = canvas.getBoundingClientRect()
-    const localX = event.clientX - rect.left
-    const localY = event.clientY - rect.top
-
-    if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
-      subdelegate.getLive2DManager().onDrag(0.0, 0.0)
-      return
-    }
-
-    const posX = localX * window.devicePixelRatio
-    const posY = localY * window.devicePixelRatio
     const view = subdelegate._view
 
     if (!view) {
       return
     }
 
+    const viewportWidth = Math.max(window.innerWidth, 1)
+    const viewportHeight = Math.max(window.innerHeight, 1)
+    const posX = (event.clientX / viewportWidth) * canvas.width
+    const posY = (event.clientY / viewportHeight) * canvas.height
     const viewX = view.transformViewX(posX)
     const viewY = view.transformViewY(posY)
     subdelegate.getLive2DManager().onDrag(viewX, viewY)
@@ -1392,10 +1385,9 @@ const attachLive2dPointerEvents = (subdelegate, canvas) => {
   }
 
   canvas.addEventListener('pointerdown', handlePointerDown, { passive: true })
-  canvas.addEventListener('pointermove', handlePointerMove, { passive: true })
-  canvas.addEventListener('pointerup', handlePointerUp, { passive: true })
-  canvas.addEventListener('pointercancel', handlePointerCancel, { passive: true })
-  canvas.addEventListener('pointerleave', handlePointerCancel, { passive: true })
+  window.addEventListener('pointermove', handlePointerMove, { passive: true })
+  window.addEventListener('pointerup', handlePointerUp, { passive: true })
+  window.addEventListener('pointercancel', handlePointerCancel, { passive: true })
 
   live2dPointerHandlers = {
     canvas,
@@ -1406,28 +1398,54 @@ const attachLive2dPointerEvents = (subdelegate, canvas) => {
   }
 }
 
-const destroyLive2d = () => {
-  if (live2dAnimationFrame) {
-    cancelAnimationFrame(live2dAnimationFrame)
-    live2dAnimationFrame = 0
-  }
-
+const destroyLive2dInstance = () => {
+  stopLive2dRenderLoop()
   detachLive2dPointerEvents()
 
   if (live2dSubdelegate) {
     live2dSubdelegate.release()
     live2dSubdelegate = null
   }
+}
 
+const stopLive2dRenderLoop = () => {
+  if (live2dAnimationFrame) {
+    cancelAnimationFrame(live2dAnimationFrame)
+    live2dAnimationFrame = 0
+  }
+}
+
+const startLive2dRenderLoop = (subdelegate) => {
+  if (!subdelegate || live2dAnimationFrame || !live2dSdk?.LAppPal) {
+    return
+  }
+
+  const render = () => {
+    if (live2dSubdelegate !== subdelegate || currentPage.value !== 'games') {
+      live2dAnimationFrame = 0
+      return
+    }
+
+    live2dSdk.LAppPal.updateTime()
+    subdelegate.update()
+    live2dAnimationFrame = requestAnimationFrame(render)
+  }
+
+  render()
+}
+
+const destroyLive2d = () => {
+  destroyLive2dInstance()
   if (live2dSdk?.CubismFramework) {
     live2dSdk.CubismFramework.dispose()
     live2dSdk.CubismFramework.cleanUp()
   }
+  live2dFrameworkReady = false
   live2dSdk = null
 }
 
 const mountLive2d = async () => {
-  if (live2dSubdelegate || currentPage.value !== 'games') {
+  if (currentPage.value !== 'games') {
     return
   }
 
@@ -1437,16 +1455,27 @@ const mountLive2d = async () => {
     return
   }
 
+  if (live2dSubdelegate) {
+    if (!live2dPointerHandlers) {
+      attachLive2dPointerEvents(live2dSubdelegate, live2dCanvas.value)
+    }
+    startLive2dRenderLoop(live2dSubdelegate)
+    return
+  }
+
   live2dError.value = ''
 
   try {
     const { CubismFramework, Option, LAppPal, live2dDefine, LAppSubdelegate } = await loadLive2dSdk()
-    const option = new Option()
-    option.logFunction = LAppPal.printMessage
-    option.loggingLevel = live2dDefine.CubismLoggingLevel
+    if (!live2dFrameworkReady) {
+      const option = new Option()
+      option.logFunction = LAppPal.printMessage
+      option.loggingLevel = live2dDefine.CubismLoggingLevel
 
-    CubismFramework.startUp(option)
-    CubismFramework.initialize()
+      CubismFramework.startUp(option)
+      CubismFramework.initialize()
+      live2dFrameworkReady = true
+    }
 
     const subdelegate = new LAppSubdelegate()
     const initialized = subdelegate.initialize(live2dCanvas.value)
@@ -1457,18 +1486,7 @@ const mountLive2d = async () => {
 
     live2dSubdelegate = subdelegate
     attachLive2dPointerEvents(subdelegate, live2dCanvas.value)
-
-    const render = () => {
-      if (live2dSubdelegate !== subdelegate) {
-        return
-      }
-
-      LAppPal.updateTime()
-      subdelegate.update()
-      live2dAnimationFrame = requestAnimationFrame(render)
-    }
-
-    render()
+    startLive2dRenderLoop(subdelegate)
   } catch (error) {
     console.error('Live2D initialization failed', error)
     live2dError.value = 'Live2D load failed.'
@@ -1549,11 +1567,20 @@ watch(currentPage, async (pageName) => {
     if (!gameRoomTracks.value.length) {
       await loadMusicList()
     }
+    await nextTick()
     await mountLive2d()
     return
   }
 
-  destroyLive2d()
+  stopLive2dRenderLoop()
+  detachLive2dPointerEvents()
+})
+
+watch(live2dCanvas, async (canvas) => {
+  if (!canvas || currentPage.value !== 'games') {
+    return
+  }
+  await mountLive2d()
 })
 
 watch(currentUser, (user) => {
@@ -1973,7 +2000,7 @@ watch(currentUser, (user) => {
       </div>
 
       <!-- 游戏角结构（开发中） -->
-      <div v-if="currentPage === 'games'" class="game-container">
+      <div v-show="currentPage === 'games'" class="game-container">
         <div class="game-toolbar">
           <div class="game-toolbar-left">
             <button type="button" class="game-tab-btn" :class="{ active: gamePanelTab === 'chat' }" @click="gamePanelTab = 'chat'">对话</button>
