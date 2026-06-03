@@ -1738,15 +1738,15 @@ watch(currentUser, (user) => {
                 <td>一定要先读哦☆</td>
               </tr>
               <tr>
-                <td><span href="#"><del>游戏角</del></span> </td>
+                <td><a href="#" @click.prevent="showPage('games')">游戏角</a> <span class="new-tag">new</span></td>
                 <td>放着站主自己做的游戏，以及觉得很有趣的游戏介绍～♪ &nbsp;正在制作</td>
               </tr>
               <tr>
-                <td><a href="#" @click.prevent="showPage('music')">音乐</a><span class="new-tag">new</span></td>
-                <td>收录二次元相关曲目，点击后就能直接播放♪</td>
+                <td><a href="#" @click.prevent="showPage('music')">音乐</a></td>
+                <td>收录anime相关曲目，点击后就能直接播放♪</td>
               </tr>
               <tr>
-                <td><a href="#" @click.prevent="showPage('links')">链接集</a><span class="new-tag">new</span></td>
+                <td><a href="#" @click.prevent="showPage('links')">链接集</a></td>
                 <td>非常欢迎互换链接☆<br><img src="./assets/images/banner.png" style="width: 10%" alt="网站横幅""></td>
               </tr>
             </tbody>

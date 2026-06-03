@@ -298,6 +298,493 @@ cd frontend
 npm run build
 ```
 
+### 14. Live2D 显示与加载问题的解决记录
+
+这次实际遇到的问题不是“第一次加载失败”，而是：
+
+1. 第一次进入“游戏角”时，Live2D 可以正常显示。
+2. 切到其他页面后，再切回“游戏角”时，Live2D 会出现下面几种异常之一：
+   - 直接不显示
+   - 还能看到，但只剩最后一帧，变成静态
+   - 重新初始化后偶尔再次消失
+
+这类问题的本质是：
+
+- 这是一个单页应用，页面切换并不是浏览器整页刷新。
+- Live2D 依赖 `canvas + WebGL + CubismFramework + sample runtime` 这一整套运行时状态。
+- 如果页面切换时只销毁一半状态，或者重新进入页面时初始化时机早于 `canvas` 真正可用，就会出现“第二次不稳定”。
+
+这次最终确认下来的关键经验有这几条：
+
+#### 1. 游戏角容器不要再用 `v-if` 反复卸载
+
+如果游戏角外层用：
+
+```html
+<div v-if="currentPage === 'games'" class="game-container">
+```
+
+那么切出页面时，整个 `canvas` 会从 DOM 里被删掉。  
+Live2D sample 在这种“反复销毁 DOM 再重建 WebGL”的路径上不稳定，很容易造成第二次加载异常。
+
+这次改成：
+
+```html
+<div v-show="currentPage === 'games'" class="game-container">
+```
+
+这样页面切换只是隐藏和显示，不会把 Live2D 的宿主 DOM 直接卸载掉。
+
+#### 2. 回到游戏角时，不能假设 `canvas` 已经马上可用
+
+单页应用切页时，`currentPage` 改了，不代表 `canvas ref` 这一刻已经可用。  
+所以回到游戏角时要这样做：
+
+```js
+watch(currentPage, async (pageName) => {
+  if (pageName === 'games') {
+    await nextTick()
+    await mountLive2d()
+  }
+})
+```
+
+`nextTick()` 的作用是等 Vue 先把显示状态更新到 DOM，再去初始化 Live2D。
+
+#### 3. 只监听 `currentPage` 还不够，最好再监听一次 `live2dCanvas`
+
+有些情况下：
+- `currentPage` 已经切回 `games`
+- 但 `canvas ref` 仍然还没稳定
+
+所以又补了一层：
+
+```js
+watch(live2dCanvas, async (canvas) => {
+  if (!canvas || currentPage.value !== 'games') return
+  await mountLive2d()
+})
+```
+
+这层逻辑的目的不是替代 `currentPage` watcher，而是做一次兜底补挂载。
+
+#### 4. “显示正常” 和 “交互正常” 是两件事
+
+这次排查里还发现：
+
+- Live2D 能显示，不代表渲染循环还在跑
+- 画面还在，不代表模型还会动
+- 交互事件绑在 `canvas` 上，不代表页面切回来后这些事件还一定有效
+
+所以需要把下面几部分明确拆开：
+
+- `mountLive2d()`：负责初始化 SDK、创建 subdelegate、绑定交互、启动渲染
+- `destroyLive2d()`：负责停止动画帧、解绑事件、释放 subdelegate、清理 CubismFramework
+- `attachLive2dPointerEvents()`：只负责交互绑定
+- `detachLive2dPointerEvents()`：只负责交互解绑
+
+不要把这些逻辑糊在一起，不然后面很难判断到底是：
+- 没有显示
+- 没有重新渲染
+- 还是只是鼠标跟随失效
+
+#### 5. 鼠标跟随范围已经从画布扩展到了整个页面
+
+之前的逻辑是：
+- 鼠标只要离开 `canvas`，角色就会停止跟随
+
+这次改成了：
+- `pointerdown` 仍然绑定在 `canvas` 上，用来处理点击交互
+- `pointermove / pointerup / pointercancel` 绑定到 `window`
+- 再把整个页面视口坐标映射到 Live2D 视图坐标
+
+这样鼠标在整个页面移动时，角色都可以继续跟随。
+
+#### 6. 这次修复过程中最重要的排错结论
+
+如果以后再次出现“第一次正常、第二次异常”的问题，优先按下面顺序检查：
+
+1. 游戏角容器是不是又被改回 `v-if`
+2. 切回页面时是不是少了 `await nextTick()`
+3. `live2dCanvas` 的 watcher 是不是被删掉了
+4. `destroyLive2d()` 是否真的完整停止了动画帧并清理了框架
+5. `mountLive2d()` 是否真的被再次调用
+6. 第二次进入页面时，`canvas ref` 是否存在
+7. 第二次进入页面时，`subdelegate.initialize(canvas)` 是否返回成功
+
+### 15. 从零实现整个 Live2D 加载流程
+
+如果以后你想完全从零重新做一套 Live2D 加载，推荐按下面这个顺序来，不要一开始就把模型、交互、表情、页面切换逻辑一次性全部写进去。
+
+#### 第一步：准备运行时资源
+
+浏览器运行 Live2D 时，真正需要的是这些资源：
+
+- `frontend/public/Core/live2dcubismcore.js`
+- `frontend/public/Framework/Shaders/WebGL/*`
+- `frontend/public/Resources/<ModelName>/*`
+
+所以从零接入时，先把 SDK 运行时文件和模型资源复制到 `frontend/public` 下。
+
+#### 第二步：准备 Vite 别名
+
+在 `frontend/vite.config.js` 里给 SDK 源码和 sample 源码配置别名：
+
+- `@framework`
+- `@live2d-demo`
+
+并允许 Vite 读取 `frontend/` 目录之外的 SDK 源码路径。
+
+#### 第三步：准备最小运行时状态
+
+至少需要下面这些状态：
+
+- `live2dCanvas`
+- `live2dError`
+- `live2dSdk`
+- `live2dSubdelegate`
+- `live2dAnimationFrame`
+- `live2dPointerHandlers`
+- `live2dFrameworkReady`
+
+这几个变量的职责要明确：
+
+- `live2dCanvas`：拿到 canvas DOM
+- `live2dError`：给页面显示错误
+- `live2dSdk`：缓存 SDK 模块
+- `live2dSubdelegate`：当前模型运行实例
+- `live2dAnimationFrame`：渲染循环句柄
+- `live2dPointerHandlers`：缓存事件处理器，方便解绑
+- `live2dFrameworkReady`：避免重复 `startUp()/initialize()`
+
+#### 第四步：实现 `ensureLive2dCoreLoaded()`
+
+这个函数要做的事情只有一个：
+
+- 确保 `/Core/live2dcubismcore.js` 只被注入一次
+
+推荐逻辑：
+
+1. 如果 `window.Live2DCubismCore` 已存在，直接返回
+2. 如果页面里已有 `script[data-live2d-core="true"]`，等待它加载完成
+3. 否则动态创建 `<script>` 注入到 `document.head`
+
+#### 第五步：实现 `loadLive2dSdk()`
+
+这个函数负责动态导入：
+
+- `@framework/live2dcubismframework`
+- `@live2d-demo/lapppal`
+- `@live2d-demo/lappdefine`
+- `@live2d-demo/lappsubdelegate`
+- `@live2d-demo/lappview`
+- `@live2d-demo/lapplive2dmanager`
+
+然后在这里做必要的 patch，例如：
+
+- 把背景清成透明
+- 修改点击逻辑，只保留表情切换
+- 指定固定模型目录
+
+#### 第六步：实现 `mountLive2d()`
+
+这个函数应该只负责“挂载”，不要顺手做销毁逻辑。
+
+建议顺序：
+
+1. 判断当前页面是否真的是 `games`
+2. `await nextTick()`
+3. 确认 `live2dCanvas.value` 存在
+4. 调用 `loadLive2dSdk()`
+5. 如果框架还没初始化，执行：
+   - `CubismFramework.startUp(option)`
+   - `CubismFramework.initialize()`
+6. 创建新的 `LAppSubdelegate`
+7. 调用 `subdelegate.initialize(live2dCanvas.value)`
+8. 绑定指针事件
+9. 启动 `requestAnimationFrame` 渲染循环
+
+#### 第七步：实现 `destroyLive2d()`
+
+这个函数应该只负责“完整销毁”：
+
+1. 停止 `requestAnimationFrame`
+2. 解绑所有指针事件
+3. `subdelegate.release()`
+4. `CubismFramework.dispose()`
+5. `CubismFramework.cleanUp()`
+6. 清掉本地缓存状态
+
+不要把“暂停一部分”和“完整销毁”写成同一个模糊动作，否则页面切换时很容易进入半死不活的状态。
+
+#### 第八步：最后再接页面切换
+
+等单次挂载稳定后，再接页面切换：
+
+```js
+watch(currentPage, async (pageName) => {
+  if (pageName === 'games') {
+    await nextTick()
+    await mountLive2d()
+    return
+  }
+
+  destroyLive2d()
+})
+```
+
+然后再补一层：
+
+```js
+watch(live2dCanvas, async (canvas) => {
+  if (!canvas || currentPage.value !== 'games') return
+  await mountLive2d()
+})
+```
+
+#### 第九步：最后再接交互增强
+
+等“稳定显示”和“稳定切页恢复”都没问题后，再去加这些增强项：
+
+- 页面级鼠标跟随
+- 点击切换表情
+- 房间状态卡
+- 音乐联动
+- Agent 对话面板
+
+顺序一定不要反过来。  
+先把“能稳定显示、能稳定第二次进入”做好，再去做交互层。这样以后排错会容易很多。
+
+## 用户认证逻辑（当前实现）
+
+### 1. 本站当前是否使用 JWT
+
+当前实现 **没有使用 JWT（JSON Web Token）作为用户认证方案**。
+
+
+1. 后端登录接口 `POST /users/login` 成功后，没有签发 token，也没有返回 JWT 字符串。
+2. 后端在 [backend/src/main/java/com/azhi/controller/UserController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/UserController.java:18) 中，登录和注册成功后做的是：
+   - `session.setAttribute("currentUser", user)`
+3. 退出登录时走的是：
+   - `session.invalidate()`
+4. 发帖权限校验在 [backend/src/main/java/com/azhi/controller/PostController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/PostController.java:29) 中依赖的是 `HttpSession`，而不是 Bearer ***。
+
+所以本站当前的认证核心是：
+
+- **服务端会话：Spring `HttpSession`**
+- **前端展示态缓存：`localStorage.currentUser`**
+
+而不是：
+
+- JWT
+- OAuth
+- 无状态 Bearer *** 鉴权
+
+### 2. 注册、登录、退出的真实流程
+
+#### 注册
+
+前端调用：
+
+- `POST /users/register`
+
+后端流程：
+
+1. 校验用户名、密码、邮箱是否为空
+2. 校验用户名和邮箱是否已存在
+3. 使用 `BCryptPasswordEncoder` 对密码加密
+4. 把用户写入数据库
+5. 清掉返回对象中的密码字段
+6. 把用户对象写入 `HttpSession`
+
+对应代码：
+
+- [backend/src/main/java/com/azhi/service/impl/UserServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/UserServiceImpl.java:14)
+- [backend/src/main/java/com/azhi/controller/UserController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/UserController.java:21)
+
+#### 登录
+
+前端调用：
+
+- `POST /users/login`
+
+后端流程：
+
+1. 根据用户名查询数据库
+2. 使用 `BCryptPasswordEncoder.matches()` 校验明文密码与数据库哈希密码是否匹配
+3. 登录成功后，将用户对象写入 `HttpSession`
+4. 返回不带密码的用户信息给前端
+
+#### 退出
+
+前端调用：
+
+- `POST /users/logout`
+
+后端流程：
+
+1. 调用 `session.invalidate()`
+2. 服务端会话失效
+3. 前端再清掉本地 `currentUser`
+
+### 3. 前端是如何保存登录状态的
+
+前端在 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:19) 中使用：
+
+```js
+const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || 'null'))
+```
+
+登录成功后：
+
+- 把后端返回的用户对象写入 `currentUser`
+- 同时执行：
+  - `localStorage.setItem('currentUser', JSON.stringify(user))`
+
+退出登录后：
+
+- `currentUser.value = null`
+- `localStorage.removeItem('currentUser')`
+
+要注意：
+
+- 这个 `currentUser` 只是前端界面状态缓存，不是服务端鉴权凭证本身。
+- 真正决定“这个请求是否已登录”的，仍然是服务端 `HttpSession`。
+
+### 4. 发帖与管理权限是怎么判断的
+
+#### 发帖/删除等需要登录的接口
+
+例如帖子相关接口，在后端通过 `HttpSession` 判断：
+
+- `session.getAttribute("currentUser") == null` 就视为未登录
+
+这说明本站不是靠 JWT 解 token 判断身份，而是标准 Session 方案。
+
+#### 管理员权限
+
+当前管理员判断是比较直接的用户名判断：
+
+- 用户名为 `AZHI4514` 时视为管理员
+
+前端里对应：
+
+- `const isAdmin = computed(() => currentUser.value?.username === 'AZHI4514')`
+
+后端房间 Agent 配置接口里还使用了：
+
+- `X-Admin-User`
+
+但这只是当前项目里一个非常轻量的管理开关，不是完整的权限系统。
+
+### 5. 关于 `frontend/src/api/request.js` 里的 token 逻辑
+
+仓库里可以看到 [frontend/src/api/request.js](/abs/path/D:/personal-blog/frontend/src/api/request.js:13) 会尝试从 `localStorage` 读取 `token` 并附加：
+
+```js
+Authorization: Bearer <token>
+```
+
+但就当前代码路径来说：
+
+1. 登录接口没有签发 JWT
+2. 前端登录流程也没有保存 `token`
+3. 后端用户认证逻辑没有校验 Bearer ***
+
+所以这段 `token` 逻辑目前 **不是本站实际在用的认证主链路**，更像是以前或后续扩展预留。
+
+结论可以明确写成一句话：
+
+- **本站当前不是 JWT 认证，而是 Session 认证。**
+
+### 6. 当前认证方案的特点
+
+优点：
+
+- 实现简单
+- 对当前博客项目足够直接
+- 后端权限判断容易落地
+
+局限：
+
+- 前后端分离到跨域部署时，要额外处理 Cookie / Session
+- 不适合直接扩展成标准无状态 API 鉴权
+- 管理员权限目前还是写死用户名，不是完整 RBAC
+
+如果以后要改成 JWT，通常需要一起调整：
+
+1. 登录接口签发 access token
+2. 前端保存 token
+3. 后端增加 JWT 校验过滤器
+4. 发帖、删除、管理等接口改成从 token 中取用户身份
+
+## Live2D 章节状态校正（以当前代码为准）
+
+下面这几条是对前面 Live2D 章节的补充校正，避免旧描述和当前代码状态不一致。
+
+### 1. 游戏角容器当前使用的是 `v-show`，不是 `v-if`
+
+当前代码以 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:1991) 为准：
+
+```html
+<div v-show="currentPage === 'games'" class="game-container">
+```
+
+这意味着：
+
+- 切出游戏角时，DOM 不会被真正卸载
+- 只是隐藏显示状态切换
+
+如果 README 里前面仍有 `v-if` 示例，请以现在这条为准。
+
+### 2. 鼠标跟随范围当前已经扩大到整个页面
+
+当前代码里：
+
+- `pointerdown` 仍然绑在 `canvas`
+- `pointermove / pointerup / pointercancel` 已经绑到 `window`
+
+所以现在的实际行为不是“只有鼠标在画布上移动才跟随”，而是：
+
+- **整个页面范围内移动鼠标，Live2D 视角都会跟随**
+
+### 3. 页面切换时，当前代码仍然会做完整销毁再重建
+
+当前 `watch(currentPage, ...)` 的行为是：
+
+- 进入 `games`：
+  - `await nextTick()`
+  - `await mountLive2d()`
+- 离开 `games`：
+  - `destroyLive2d()`
+
+也就是说，当前代码状态不是“后台持续保留旧实例不动”，而是“切走销毁，切回重建”。
+
+### 4. 当前还保留了 `watch(live2dCanvas, ...)` 作为补挂载机制
+
+这条逻辑仍然存在，作用是：
+
+- 当 `canvas ref` 真正可用时，再补一次 `mountLive2d()`
+
+所以 README 前文如果只写了 `watch(currentPage)`，还不够完整。  
+当前真实代码是：
+
+- `watch(currentPage, ...)`
+- `watch(live2dCanvas, ...)`
+
+两层一起工作。
+
+### 5. 当前 Live2D 状态描述建议以这几条为准
+
+如果你以后继续维护 README，建议把 Live2D 现状统一理解成：
+
+1. 运行时资源来自 `frontend/public`
+2. SDK 源码通过 `@framework` / `@live2d-demo` 动态导入
+3. 游戏角区域通过 `v-show` 保留宿主 DOM
+4. 进入页面时通过 `nextTick() + mountLive2d()` 初始化
+5. 离开页面时通过 `destroyLive2d()` 完整清理
+6. 鼠标跟随范围覆盖整个页面，不再局限于画布
+
 ## Local Development
 
 ### 1. 进入服务器并安装环境
