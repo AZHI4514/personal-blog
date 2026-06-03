@@ -1,13 +1,13 @@
-# Personal Blog
+# **☽星尘观测站☾**
 
 Vue 3 + Spring Boot personal blog, prepared for local development and production deployment.
 
-## Stack
+## 技术栈
 
 - Frontend: Vue 3, Vite, Vue Router, Pinia, Axios
 - Backend: Spring Boot 3.5, MyBatis, MySQL
 
-## Project Layout
+## 项目目录结构
 
 ```text
 personal-blog/
@@ -785,97 +785,7 @@ Authorization: Bearer <token>
 5. 离开页面时通过 `destroyLive2d()` 完整清理
 6. 鼠标跟随范围覆盖整个页面，不再局限于画布
 
-## Local Development
-
-### 1. 进入服务器并安装环境
-
-ssh root@你的服务器公网IP
-apt update
-apt upgrade -y
-apt install -y git curl unzip nginx mysql-server openjdk-17-jdk maven
-systemctl enable nginx
-systemctl start nginx
-systemctl enable mysql
-systemctl start mysql
-java -version
-mvn -version
-node -v
-如果还没装 Node 20，再执行：
-
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-node -v
-npm -v
-### 2. clone 项目
-
-cd /home
-git clone https://github.com/AZHI4514/personal-blog.git
-cd /home/personal-blog
-### 3. 初始化 MySQL
-
-mysql -uroot
-进 MySQL 后执行：
-
-CREATE DATABASE IF NOT EXISTS blog_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'blog_user'@'localhost' IDENTIFIED BY '你的数据库密码';
-GRANT ALL PRIVILEGES ON blog_db.* TO 'blog_user'@'localhost';
-FLUSH PRIVILEGES;
-exit;
-导入数据库：
-
-mysql -u blog_user -p blog_db < /home/personal-blog/blog_db_backup.sql
-### 4. 创建后端运行目录和上传目录
-
-mkdir -p /opt/personal-blog/backend/uploads
-mkdir -p /var/www/personal-blog
-### 5. 构建前端
-
-cd /home/personal-blog/frontend
-npm install
-npm run build
-rm -rf /var/www/personal-blog/*
-cp -r dist/* /var/www/personal-blog/
-### 6. 构建后端
-
-cd /home/personal-blog/backend
-mvn clean package -DskipTests
-cp target/personal-blog-0.0.1-SNAPSHOT.jar /opt/personal-blog/backend/app.jar
-### 7. 创建 systemd 后端服务
-
-cat >/etc/systemd/system/personal-blog-back.service <<'EOF'
-[Unit]
-Description=Personal Blog Backend
-After=network.target mysql.service
-
-[Service]
-User=root
-WorkingDirectory=/opt/personal-blog/backend
-Environment="PORT=8080"
-Environment="DB_HOST=127.0.0.1"
-Environment="DB_PORT=3306"
-Environment="DB_NAME=blog_db"
-Environment="DB_USERNAME=blog_user"
-Environment="DB_PASSWORD=你的数据库密码"
-Environment="UPLOAD_PATH=/opt/personal-blog/backend/uploads"
-Environment="CORS_ALLOWED_ORIGINS=https://你的域名"
-ExecStart=/usr/bin/java -jar /opt/personal-blog/backend/app.jar
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-### 8. 启动后端
-
-systemctl daemon-reload
-systemctl enable personal-blog-back
-systemctl start personal-blog-back
-systemctl status personal-blog-back
-看日志：
-
-journalctl -u personal-blog-back -f
-
-## 游戏角 Agent 配置说明（新增）
+## 游戏角 Agent 配置说明
 
 本次接入只改了两个位置：
 
@@ -892,7 +802,7 @@ journalctl -u personal-blog-back -f
 - 音乐信息卡：直接复用现有的音乐列表数据，不新增音乐表。
 - 设置面板：也直接写在 `App.vue` 里，没有拆组件。
 
-设置面板里目前可配置：
+设置面板里目前可配置（管理员）：
 
 - `API URL`
 - `API Key`
@@ -994,6 +904,97 @@ journalctl -u personal-blog-back -f
 - 把长期记忆从内存版改成 MySQL 持久化
 - 新增后端 `/api/chat` 代理接口
 - 把 `MCP` 的占位返回替换成真实工具调用
+
+## 服务器部署
+
+### 1. 进入服务器并安装环境
+
+ssh root@你的服务器公网IP
+apt update
+apt upgrade -y
+apt install -y git curl unzip nginx mysql-server openjdk-17-jdk maven
+systemctl enable nginx
+systemctl start nginx
+systemctl enable mysql
+systemctl start mysql
+java -version
+mvn -version
+node -v
+如果还没装 Node 20，再执行：
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+node -v
+npm -v
+### 2. clone 项目
+
+cd /home
+git clone https://github.com/AZHI4514/personal-blog.git
+cd /home/personal-blog
+### 3. 初始化 MySQL
+
+mysql -uroot
+进 MySQL 后执行：
+
+CREATE DATABASE IF NOT EXISTS blog_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'blog_user'@'localhost' IDENTIFIED BY '你的数据库密码';
+GRANT ALL PRIVILEGES ON blog_db.* TO 'blog_user'@'localhost';
+FLUSH PRIVILEGES;
+exit;
+导入数据库：
+
+mysql -u blog_user -p blog_db < /home/personal-blog/blog_db_backup.sql
+### 4. 创建后端运行目录和上传目录
+
+mkdir -p /opt/personal-blog/backend/uploads
+mkdir -p /var/www/personal-blog
+### 5. 构建前端
+
+cd /home/personal-blog/frontend
+npm install
+npm run build
+rm -rf /var/www/personal-blog/*
+cp -r dist/* /var/www/personal-blog/
+### 6. 构建后端
+
+cd /home/personal-blog/backend
+mvn clean package -DskipTests
+cp target/personal-blog-0.0.1-SNAPSHOT.jar /opt/personal-blog/backend/app.jar
+### 7. 创建 systemd 后端服务
+
+cat >/etc/systemd/system/personal-blog-back.service <<'EOF'
+[Unit]
+Description=Personal Blog Backend
+After=network.target mysql.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/personal-blog/backend
+Environment="PORT=8080"
+Environment="DB_HOST=127.0.0.1"
+Environment="DB_PORT=3306"
+Environment="DB_NAME=blog_db"
+Environment="DB_USERNAME=blog_user"
+Environment="DB_PASSWORD=你的数据库密码"
+Environment="UPLOAD_PATH=/opt/personal-blog/backend/uploads"
+Environment="CORS_ALLOWED_ORIGINS=https://你的域名"
+ExecStart=/usr/bin/java -jar /opt/personal-blog/backend/app.jar
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+### 8. 启动后端
+
+systemctl daemon-reload
+systemctl enable personal-blog-back
+systemctl start personal-blog-back
+systemctl status personal-blog-back
+看日志：
+
+journalctl -u personal-blog-back -f
+
 ### 9. 配置 Nginx
 
 cat >/etc/nginx/sites-available/personal-blog <<'EOF'
@@ -1004,11 +1005,11 @@ server {
     root /var/www/personal-blog;
     index index.html;
     client_max_body_size 10m;
-
+    
     location / {
         try_files $uri $uri/ /index.html;
     }
-
+    
     location /posts {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1016,7 +1017,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /images {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1024,7 +1025,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /uploads {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1032,7 +1033,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /musics {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1040,7 +1041,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /clap {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1048,7 +1049,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /users {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1056,7 +1057,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /visitor-stats {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1121,11 +1122,11 @@ server {
     root /var/www/personal-blog;
     index index.html;
     client_max_body_size 10m;
-
+    
     location / {
         try_files $uri $uri/ /index.html;
     }
-
+    
     location /posts {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1133,7 +1134,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /images {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1141,7 +1142,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /uploads {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1149,7 +1150,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /musics {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1157,7 +1158,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /clap {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1165,7 +1166,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /users {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -1173,7 +1174,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-
+    
     location /visitor-stats {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
