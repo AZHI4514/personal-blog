@@ -75,6 +75,13 @@ public class RoomAgentMemoryService {
         return before - bucket.size();
     }
 
+    public int deleteAllMemories(String userId) {
+        List<Map<String, Object>> bucket = userBucket(userId);
+        int count = bucket.size();
+        bucket.clear();
+        return count;
+    }
+
     private int clampLimit(int limit, int max) {
         return Math.max(1, Math.min(limit, max));
     }

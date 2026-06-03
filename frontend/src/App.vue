@@ -745,6 +745,14 @@ const writeGameJson = (key, value) => {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
+const getGameUserId = () => currentUser.value?.userId || currentUser.value?.id || currentUser.value?.username || 'guest'
+
+const getGameScopedKey = (key) => `${key}:${getGameUserId()}`
+
+const readScopedGameJson = (key, fallback) => readGameJson(getGameScopedKey(key), fallback)
+
+const writeScopedGameJson = (key, value) => writeGameJson(getGameScopedKey(key), value)
+
 const createGameKnowledgeEntry = (entry = {}) => ({
   id: entry.id || `knowledge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
   title: String(entry.title || '').trim(),
@@ -807,6 +815,11 @@ const loadGameLlmSettings = async () => {
       model: result.data?.model || '',
       visionMode: result.data?.visionMode || 'auto'
     })
+    Object.assign(gameMcpSettings.value, {
+      enabled: Boolean(result.data?.mcpEnabled),
+      endpoint: result.data?.mcpEndpoint || '',
+      toolAllowlist: result.data?.mcpToolAllowlist || 'understand_image,web_search'
+    })
   } catch (error) {
     console.error('load game llm config failed', error)
   }
@@ -815,7 +828,6 @@ const loadGameLlmSettings = async () => {
 const loadGameSettings = async () => {
   await loadGameLlmSettings()
   Object.assign(gameMemorySettings.value, { enabled: true, ...readGameJson('roomMemorySettings', {}) })
-  Object.assign(gameMcpSettings.value, { enabled: false, endpoint: '', toolAllowlist: 'understand_image,web_search', ...readGameJson('roomMCPSettings', {}) })
   const knowledge = readGameJson('roomKnowledgeSettings', {})
   gameKnowledgeSettings.value.enabled = knowledge.enabled !== false
   gameKnowledgeSettings.value.entries = Array.isArray(knowledge.entries) && knowledge.entries.length
@@ -860,8 +872,35 @@ const saveGameMemorySettings = () => {
   writeGameJson('roomMemorySettings', { enabled: Boolean(gameMemorySettings.value.enabled) })
 }
 
-const saveGameMcpSettings = () => {
-  writeGameJson('roomMCPSettings', { ...gameMcpSettings.value })
+const saveGameMcpSettings = async () => {
+  try {
+    const response = await fetch('/room-agent/config', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-User': String(currentUser.value?.username || '')
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        mcpEnabled: Boolean(gameMcpSettings.value.enabled),
+        mcpEndpoint: String(gameMcpSettings.value.endpoint || ''),
+        mcpToolAllowlist: String(gameMcpSettings.value.toolAllowlist || 'understand_image,web_search')
+      })
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(result.message || `HTTP ${response.status}`)
+    }
+    Object.assign(gameMcpSettings.value, {
+      enabled: Boolean(result.data?.mcpEnabled),
+      endpoint: result.data?.mcpEndpoint || '',
+      toolAllowlist: result.data?.mcpToolAllowlist || 'understand_image,web_search'
+    })
+    alert('MCP 配置已保存')
+  } catch (error) {
+    console.error('save game mcp config failed', error)
+    alert(error.message || '保存 MCP 配置失败')
+  }
 }
 
 const saveGameKnowledgeSettings = () => {
@@ -949,7 +988,7 @@ const addGameMessage = (role, content, options = {}) => {
 }
 
 const loadGameChatHistory = () => {
-  const history = readGameJson('roomChatHistory', [])
+  const history = readScopedGameJson('roomChatHistory', [])
   if (!Array.isArray(history) || !history.length) {
     gameMessages.value = [
       createGameMessage('assistant', '欢迎来到游戏角。这里已经接入了 agent 模板，你可以直接和我聊天，也可以打开设置面板配置模型。')
@@ -960,24 +999,52 @@ const loadGameChatHistory = () => {
 }
 
 const persistGameChatHistory = () => {
-  writeGameJson('roomChatHistory', gameMessages.value.slice(-24).map(item => ({
+  writeScopedGameJson('roomChatHistory', gameMessages.value.slice(-24).map(item => ({
     role: item.role,
     content: item.content
   })))
 }
 
-const getGameUserId = () => currentUser.value?.userId || currentUser.value?.id || currentUser.value?.username || 'guest'
+const loadGameLocalMemories = () => {
+  const memories = readScopedGameJson('roomAgentMemories', [])
+  return Array.isArray(memories) ? memories : []
+}
+
+const persistGameLocalMemories = (memories) => {
+  writeScopedGameJson('roomAgentMemories', memories)
+}
+
+const buildGameMemoryItem = (userMessage, assistantReply) => {
+  const content = `user: ${String(userMessage || '').trim()}\nassistant: ${String(assistantReply || '').trim()}`.trim()
+  if (content.length < 12) return null
+  const summary = content.length > 220 ? `${content.slice(0, 220)}...` : content
+  return {
+    id: `memory-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'conversation',
+    summary,
+    content,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+}
 
 const fetchGameRelevantMemories = async (message) => {
   if (gameMemorySettings.value.enabled === false) return []
-  const params = new URLSearchParams({ q: String(message || '').trim(), limit: '5' })
-  const response = await fetch(`/room-agent/memory?${params.toString()}`, {
-    credentials: 'include',
-    headers: { 'X-User-Id': String(getGameUserId()) }
-  })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) return []
-  return Array.isArray(result.data) ? result.data : []
+  const query = String(message || '').trim().toLowerCase()
+  const tokens = query.split(/[\s,，。！？、；:：()[\]{}"'`]+/).filter(Boolean)
+  const memories = loadGameLocalMemories()
+  if (!tokens.length) {
+    return memories.slice(0, 5)
+  }
+  return memories
+    .map((item, index) => {
+      const haystack = `${item.summary || ''} ${item.content || ''}`.toLowerCase()
+      const score = tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0) + (index < 3 ? 1 : 0)
+      return { ...item, score, index }
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .slice(0, 5)
 }
 
 const buildGameKnowledgeContext = (message) => {
@@ -1004,6 +1071,23 @@ const buildGameMemoryContext = (memories) => {
 
 const shouldGameUseWebSearch = (message) => /(搜索|查一下|最新|官网|新闻|search|web)/i.test(String(message || ''))
 
+const getGameMcpToolNames = () => String(gameMcpSettings.value.toolAllowlist || '')
+  .split(',')
+  .map(item => item.trim())
+  .filter(Boolean)
+
+const pickGameSearchToolName = () => {
+  const names = getGameMcpToolNames()
+  if (!names.length) return ''
+  if (names.includes('web_search')) return 'web_search'
+  return names.find(name => name !== 'understand_image') || ''
+}
+
+const pickGameVisionToolName = () => {
+  const names = getGameMcpToolNames()
+  return names.includes('understand_image') ? 'understand_image' : ''
+}
+
 const callGameMcpTool = async (name, args = {}) => {
   if (!gameMcpSettings.value.enabled) return ''
   const response = await fetch('/room-agent/mcp/call', {
@@ -1024,15 +1108,17 @@ const buildGameRoomContext = async (message, image) => {
   const memories = await fetchGameRelevantMemories(message).catch(() => [])
   const memoryText = buildGameMemoryContext(memories)
   if (memoryText) blocks.push(memoryText)
-  if (image && (gameLlmSettings.value.visionMode === 'mcp' || gameLlmSettings.value.visionMode === 'auto')) {
-    const imageText = await callGameMcpTool('understand_image', {
+  const visionToolName = pickGameVisionToolName()
+  if (image && visionToolName && (gameLlmSettings.value.visionMode === 'mcp' || gameLlmSettings.value.visionMode === 'auto')) {
+    const imageText = await callGameMcpTool(visionToolName, {
       imageData: image.dataUrl,
       prompt: message || '请结合这张图片描述当前内容。'
     }).catch(() => '')
     if (imageText) blocks.push(`图片理解结果：\n${imageText}`)
   }
-  if (!image && shouldGameUseWebSearch(message)) {
-    const searchText = await callGameMcpTool('web_search', { query: message }).catch(() => '')
+  const searchToolName = pickGameSearchToolName()
+  if (!image && searchToolName && shouldGameUseWebSearch(message)) {
+    const searchText = await callGameMcpTool(searchToolName, { query: message }).catch(() => '')
     if (searchText) blocks.push(`搜索结果：\n${searchText}`)
   }
   if (gameWorld.value) blocks.push(`房间状态：${gameWeatherCard.value.label}，${gameWeatherCard.value.temperature}，${gameWeatherCard.value.detail}`)
@@ -1055,15 +1141,28 @@ const extractGameReply = (data) => data?.data?.reply || data?.reply || data?.dat
 
 const rememberGameConversation = async (userMessage, assistantReply) => {
   if (gameMemorySettings.value.enabled === false) return
-  await fetch('/room-agent/memory', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': String(getGameUserId())
-    },
-    credentials: 'include',
-    body: JSON.stringify({ userMessage, assistantReply })
-  }).catch(() => {})
+  const candidate = buildGameMemoryItem(userMessage, assistantReply)
+  if (!candidate) return
+  const next = [candidate, ...loadGameLocalMemories()].slice(0, 60)
+  persistGameLocalMemories(next)
+}
+
+const clearGameConversationAndMemory = async () => {
+  const confirmed = window.confirm('确定要清空当前对话和长期记忆吗？')
+  if (!confirmed) return
+  try {
+    gameMessages.value = [
+      createGameMessage('assistant', '欢迎回到游戏角。之前的对话和记忆已经清空，我们可以重新开始。')
+    ]
+    writeScopedGameJson('roomChatHistory', [])
+    writeScopedGameJson('roomAgentMemories', [])
+    nextTick(() => {
+      if (gameMessageListRef.value) gameMessageListRef.value.scrollTop = gameMessageListRef.value.scrollHeight
+    })
+  } catch (error) {
+    console.error('clear game conversation failed', error)
+    alert(error.message || '清空失败')
+  }
 }
 
 const attachGameImage = async (event) => {
@@ -1461,6 +1560,7 @@ watch(currentUser, (user) => {
   if (user?.username !== 'AZHI4514') {
     gameSettingsOpen.value = false
   }
+  loadGameChatHistory()
 })
 </script>
 
@@ -1937,6 +2037,7 @@ watch(currentUser, (user) => {
                     上传图片
                     <input type="file" accept="image/*" class="game-file-input" @change="attachGameImage">
                   </label>
+                  <button type="button" class="game-link-btn" @click="clearGameConversationAndMemory">清空对话/记忆</button>
                   <button type="button" class="game-send-btn" :disabled="gameSending" @click="sendGameMessage">
                     {{ gameSending ? '发送中...' : '发送' }}
                   </button>

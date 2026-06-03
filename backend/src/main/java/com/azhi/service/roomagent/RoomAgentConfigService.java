@@ -24,6 +24,9 @@ public class RoomAgentConfigService {
         data.put("apiKey", safe(config.getApiKey()));
         data.put("model", safe(config.getModel()));
         data.put("visionMode", safe(config.getVisionMode(), "auto"));
+        data.put("mcpEnabled", config.getMcpEnabled() != null && config.getMcpEnabled());
+        data.put("mcpEndpoint", safe(config.getMcpEndpoint()));
+        data.put("mcpToolAllowlist", safe(config.getMcpToolAllowlist(), "understand_image,web_search"));
         data.put("hasApiKey", config.getApiKey() != null && !config.getApiKey().isBlank());
         data.put("updatedBy", safe(config.getUpdatedBy()));
         data.put("updateTime", config.getUpdateTime());
@@ -39,6 +42,9 @@ public class RoomAgentConfigService {
         current.setApiKey(String.valueOf(body.getOrDefault("apiKey", current.getApiKey())));
         current.setModel(String.valueOf(body.getOrDefault("model", current.getModel())));
         current.setVisionMode(String.valueOf(body.getOrDefault("visionMode", current.getVisionMode() == null ? "auto" : current.getVisionMode())));
+        current.setMcpEnabled(readBoolean(body.get("mcpEnabled"), current.getMcpEnabled() != null && current.getMcpEnabled()));
+        current.setMcpEndpoint(String.valueOf(body.getOrDefault("mcpEndpoint", current.getMcpEndpoint())));
+        current.setMcpToolAllowlist(String.valueOf(body.getOrDefault("mcpToolAllowlist", current.getMcpToolAllowlist() == null ? "understand_image,web_search" : current.getMcpToolAllowlist())));
         current.setUpdatedBy(adminUser);
         int updated = roomAgentConfigMapper.updateByConfigKey(current);
         if (updated <= 0) {
@@ -62,6 +68,9 @@ public class RoomAgentConfigService {
         fallback.setApiKey("");
         fallback.setModel("");
         fallback.setVisionMode("auto");
+        fallback.setMcpEnabled(false);
+        fallback.setMcpEndpoint("");
+        fallback.setMcpToolAllowlist("understand_image,web_search");
         fallback.setUpdatedBy("AZHI4514");
         return fallback;
     }
@@ -72,5 +81,13 @@ public class RoomAgentConfigService {
 
     private String safe(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private boolean readBoolean(Object value, boolean fallback) {
+        if (value == null) return fallback;
+        if (value instanceof Boolean bool) return bool;
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty()) return fallback;
+        return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text) || "on".equalsIgnoreCase(text);
     }
 }

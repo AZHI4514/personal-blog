@@ -84,6 +84,13 @@ public class RoomAgentController {
         return Result.success(Map.of("count", roomAgentService.deleteMemory(userId, id)));
     }
 
+    @DeleteMapping("/memory")
+    public Result<Map<String, Integer>> deleteAllMemory(
+            @RequestHeader(value = "X-User-Id", defaultValue = "guest") String userId
+    ) {
+        return Result.success(Map.of("count", roomAgentService.deleteAllMemories(userId)));
+    }
+
     @PostMapping("/mcp/call")
     public Result<?> callMcp(@RequestBody Map<String, Object> body) {
         return Result.success(roomAgentService.callAllowedTool(body));

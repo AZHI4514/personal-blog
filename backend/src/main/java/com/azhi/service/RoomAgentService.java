@@ -15,6 +15,8 @@ public interface RoomAgentService {
     Map<String, Object> updateMemory(String userId, String id, Map<String, Object> payload);
     
     int deleteMemory(String userId, String id);
+
+    int deleteAllMemories(String userId);
     
     Map<String, Object> callAllowedTool(Map<String, Object> body);
     

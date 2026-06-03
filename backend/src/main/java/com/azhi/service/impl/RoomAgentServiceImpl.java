@@ -51,6 +51,11 @@ public class RoomAgentServiceImpl implements RoomAgentService {
     }
 
     @Override
+    public int deleteAllMemories(String userId) {
+        return memoryService.deleteAllMemories(userId);
+    }
+
+    @Override
     public Map<String, Object> callAllowedTool(Map<String, Object> body) {
         return chatService.callAllowedTool(body);
     }

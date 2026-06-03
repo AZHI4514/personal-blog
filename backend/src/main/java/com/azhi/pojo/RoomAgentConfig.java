@@ -12,6 +12,9 @@ public class RoomAgentConfig {
     private String apiKey;
     private String model;
     private String visionMode;
+    private Boolean mcpEnabled;
+    private String mcpEndpoint;
+    private String mcpToolAllowlist;
     private String updatedBy;
     private LocalDateTime updateTime;
 }
