@@ -38,5 +38,5 @@ langchain4j:
   open-ai:
     chat-model:
       base-url: https://token-plan-cn.xiaomimimo.com/v1  # 替换为你的模型服务地址
-      api-key: tp-cryglsfplp9hp21tg6m4iieone93cq6fx5nxoc1eo9gx3oce  # 替换为你的API密钥，建议通过环境变量传入
+      api-key: ${MIMO_API_KEY}  # 替换为你的API密钥，建议通过环境变量传入
       model-name: mimo-v2.5  # 替换为你的模型名称
