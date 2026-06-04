@@ -12,7 +12,15 @@ class AiCodeHelperServiceTest {
 
     @Test
     void chat() {
-        String result = aiCodeHelperService.chat("你好，你是谁");
+        String result = aiCodeHelperService.chat(1, "你好，你是谁");
         System.out.println(result);
+    }
+
+    @Test
+    void chatWithMemory() {
+        String result = aiCodeHelperService.chat(1, "你好，你是谁，我是AZHI4514");
+        System.out.println(result);
+        result = aiCodeHelperService.chat(1, "我是谁来着");
+        System.out.println( result);
     }
 }
