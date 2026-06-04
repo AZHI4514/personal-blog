@@ -2451,9 +2451,9 @@ watch(currentUser, (user) => {
         <div class="links-category">
           <h2>☆ 资料室 / 实用工具 ☆</h2>
           <ul class="links-list">
-            <li><a href="https://github.com/redchenk/tsukuyomi-space" target="_blank" rel="noopener noreferrer">Github Tsukuyomi Space</a> – 开源 Live2D 聊天项目。是站长学习 agent 的宝库哦~</li>
+            <li><a href="https://github.com/redchenk/tsukuyomi-space" target="_blank" rel="noopener noreferrer">Github Tsukuyomi Space</a> – 开源 Live2D 聊天项目。是站长的 agent 模板哦~</li>
             <li><a href="https://www.w3schools.com/" target="_blank" rel="noopener noreferrer">HTML/CSS 基础讲座 (W3Schools)</a> – 想要亲手制作网页的话就从这里开始吧！站长也在这里学到了很多知识呢。</li>
-            <li><a href="https://www.dafont.com/" target="_blank" rel="noopener noreferrer">精美字体馆 (DaFont)</a> – 能瞬间改变网站氛围的个性字体！记得查看使用说明，给主页换个漂亮新装吧！</li>
+            <li><a href="https://github.com/liyupi/ai-code-helper" target="_blank" rel="noopener noreferrer">LangChain4j 实战项目</a> – 在这里学到了基于 LangChain4j 的 agent 技术！记得查看快速开始！</li>
             <li><a href="https://www.cursors-4u.com/" target="_blank" rel="noopener noreferrer">鼠标指针资料站 (Cursors-4u.com)</a> – 让鼠标也变得闪闪发光或可爱跳动！超多动画指针等你来领走。</li>
           </ul>
         </div>
