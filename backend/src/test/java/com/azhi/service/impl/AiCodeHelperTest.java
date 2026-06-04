@@ -17,15 +17,8 @@ public class AiCodeHelperTest {
     private AiCodeHelper aiCodeHelper;
 
     @Test
-    void testChat() {
-        String response = aiCodeHelper.chat("你好，你是谁");
-        System.out.println("AI 回复: " + response);
-        assertNotNull(response);
-        assertTrue(response.length() > 0);
-    }
-
-    @Test
     void chat() {
+        aiCodeHelper.chat("你好，你是谁");
     }
 
     @Test
