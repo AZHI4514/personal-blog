@@ -14,8 +14,18 @@ public class AiCodeHelper {
 
     @Resource
     private ChatModel chatModel;
+
+    // 简单对话
     public String chat(String message) {
         UserMessage userMessage = UserMessage.from(message);
+        ChatResponse chatResponse = chatModel.chat(userMessage);
+        AiMessage aiMessage = chatResponse.aiMessage();
+        log.info("AI 回复：" + aiMessage.toString());
+        return aiMessage.text();
+    }
+
+    // 简单对话
+    public String chatWithMessage(UserMessage  userMessage) {
         ChatResponse chatResponse = chatModel.chat(userMessage);
         AiMessage aiMessage = chatResponse.aiMessage();
         log.info("AI 回复：" + aiMessage.toString());
