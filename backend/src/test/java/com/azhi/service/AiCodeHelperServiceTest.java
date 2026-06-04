@@ -23,4 +23,11 @@ class AiCodeHelperServiceTest {
         result = aiCodeHelperService.chat(1, "我是谁来着");
         System.out.println( result);
     }
+
+    @Test
+    void chatForReport() {
+        String userMessage = "你好，我是AZHI4514，正在学习网站搭建，请帮我制定学习报告";
+        AiCodeHelperService.Report report = aiCodeHelperService.chatForReport(1, userMessage);
+        System.out.println(report);
+    }
 }
