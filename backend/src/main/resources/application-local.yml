@@ -31,3 +31,13 @@ file:
 app:
   cors:
     allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
+
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: https://token-plan-cn.xiaomimimo.com/v1
+      api-key: ${MIMO_API_KEY:tp-cryglsfplp9hp21tg6m4iieone93cq6fx5nxoc1eo9gx3oce}
+      model-name: mimo-v2.5
+
+
+
