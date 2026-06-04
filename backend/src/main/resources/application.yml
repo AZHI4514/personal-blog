@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: ${PORT}
 
 spring:
   application:
@@ -8,9 +8,9 @@ spring:
     active: local
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:blog_db}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:1234}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   servlet:
     multipart:
       max-file-size: 10MB
@@ -32,11 +32,14 @@ file:
 
 app:
   cors:
-    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174}
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGINS}
 
 langchain4j:
   open-ai:
     chat-model:
-      base-url: https://token-plan-cn.xiaomimimo.com/v1  # 替换为你的模型服务地址
+      base-url: ${MIMO_BASE_URL}  # 替换为你的模型服务地址
       api-key: ${MIMO_API_KEY}  # 替换为你的API密钥，建议通过环境变量传入
       model-name: mimo-v2.5  # 替换为你的模型名称
+
+aliyun:
+  api-key: ${DASHSCOPE_API_KEY}

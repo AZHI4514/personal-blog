@@ -30,4 +30,10 @@ class AiCodeHelperServiceTest {
         AiCodeHelperService.Report report = aiCodeHelperService.chatForReport(1, userMessage);
         System.out.println(report);
     }
+
+    @Test
+    void chatWithMCP() {
+        String result = aiCodeHelperService.chat(1, "你好，你是谁，我是AZHI4514，搜索今天的日期");
+        System.out.println(result);
+    }
 }

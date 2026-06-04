@@ -35,9 +35,11 @@ app:
 langchain4j:
   open-ai:
     chat-model:
-      base-url: https://token-plan-cn.xiaomimimo.com/v1
+      base-url: ${MIMO_BASE_URL:https://token-plan-cn.xiaomimimo.com/v1}
       api-key: ${MIMO_API_KEY:tp-cryglsfplp9hp21tg6m4iieone93cq6fx5nxoc1eo9gx3oce}
       model-name: mimo-v2.5
 
+aliyun:
+  api-key: ${DASHSCOPE_API_KEY:sk-afda3f6f124246d9a38cbd7b0dbeb350}
 
 
