@@ -53,6 +53,7 @@ const adminDeleting = ref({
 })
 const live2dCanvas = ref(null)
 const live2dError = ref('')
+const gameActivePanel = ref('chat')
 const gameMessageListRef = ref(null)
 const gameSending = ref(false)
 const gameInput = ref('')
@@ -65,6 +66,14 @@ let live2dAnimationFrame = 0
 let live2dPointerHandlers = null
 let live2dFrameworkReady = false
 let gameChatEventSource = null
+
+const gameConfigItems = [
+  { label: '使用模型', value: 'Mimo-v2.5' },
+  { label: '是否启用长期记忆', value: '是' },
+  { label: '是否启用 MCP 服务', value: '是' },
+  { label: 'MCP 服务模型', value: 'Dashscope' },
+  { label: '调用 MCP 服务工具', value: 'web_search' }
+]
 
 const handleClap = async () => {
   try {
@@ -764,6 +773,37 @@ const updateGameMessageContent = (messageId, updater) => {
   })
 }
 
+const streamGameChatByGet = async (memoryId, userMessage, assistantMessageId) => new Promise((resolve, reject) => {
+  const params = new URLSearchParams({
+    memoryId: String(memoryId),
+    message: userMessage
+  })
+  const eventSource = new EventSource(`/ai/chat?${params.toString()}`)
+  gameChatEventSource = eventSource
+
+  eventSource.onmessage = (event) => {
+    if (!event.data) return
+    updateGameMessageContent(assistantMessageId, (content) => `${content}${event.data}`)
+  }
+
+  eventSource.addEventListener('done', () => {
+    closeGameEventSource()
+    resolve()
+  })
+
+  eventSource.addEventListener('error', (event) => {
+    const errorMessage = event?.data || '对话服务连接失败'
+    closeGameEventSource()
+    reject(new Error(errorMessage))
+  })
+
+  eventSource.onerror = () => {
+    if (!gameChatEventSource) return
+    closeGameEventSource()
+    reject(new Error('对话服务连接中断'))
+  }
+})
+
 const clearGameConversationAndMemory = async () => {
   const confirmed = window.confirm('确定要清空当前对话和长期记忆吗？')
   if (!confirmed) return
@@ -797,56 +837,22 @@ const sendGameMessage = async () => {
     const assistantMessage = createGameMessage('assistant', '')
     gameMessages.value.push(assistantMessage)
     gameStreamingMessageId.value = assistantMessage.id
-
-    const params = new URLSearchParams({
-      memoryId: String(getGameMemoryId()),
-      message
-    })
-    const eventSource = new EventSource(`/ai/chat?${params.toString()}`)
-    gameChatEventSource = eventSource
-
-    eventSource.onmessage = (event) => {
-      if (!event.data) return
-      updateGameMessageContent(assistantMessage.id, (content) => `${content}${event.data}`)
-    }
-
-    eventSource.addEventListener('done', () => {
-      persistGameChatHistory()
-      gameSending.value = false
-      gameStreamingMessageId.value = ''
-      closeGameEventSource()
-    })
-
-    eventSource.addEventListener('error', (event) => {
-      const errorMessage = event?.data || '????????'
-      const currentContent = gameMessages.value.find(item => item.id === assistantMessage.id)?.content?.trim()
-      if (!currentContent) {
-        updateGameMessageContent(assistantMessage.id, () => `?????${errorMessage}`)
-      }
-      persistGameChatHistory()
-      gameSending.value = false
-      gameStreamingMessageId.value = ''
-      closeGameEventSource()
-    })
-
-    eventSource.onerror = () => {
-      if (!gameChatEventSource) return
-      const currentContent = gameMessages.value.find(item => item.id === assistantMessage.id)?.content?.trim()
-      if (!currentContent) {
-        updateGameMessageContent(assistantMessage.id, () => '?????????????')
-      }
-      persistGameChatHistory()
-      gameSending.value = false
-      gameStreamingMessageId.value = ''
-      closeGameEventSource()
-    }
-  } catch (error) {
-    console.error('send game message failed', error)
-    addGameMessage('system', `发送失败：${error.message}`)
+    const memoryId = getGameMemoryId()
+    await streamGameChatByGet(memoryId, message, assistantMessage.id)
     persistGameChatHistory()
     gameSending.value = false
     gameStreamingMessageId.value = ''
-    closeGameEventSource()
+  } catch (error) {
+    console.error('send game message failed', error)
+    const currentContent = gameMessages.value.find(item => item.id === gameStreamingMessageId.value)?.content?.trim()
+    if (!currentContent && gameStreamingMessageId.value) {
+      updateGameMessageContent(gameStreamingMessageId.value, () => `发送失败：${error.message}`)
+    } else {
+      addGameMessage('system', `发送失败：${error.message}`)
+    }
+    persistGameChatHistory()
+    gameSending.value = false
+    gameStreamingMessageId.value = ''
   }
 }
 
@@ -1298,6 +1304,7 @@ watch(currentUser, () => {
           <div class="log-box">
             <div class="log-content">
               <ul>
+                <li><span class="log">2026-6-5 </span> 加入了聊天助手　☽月見八千代☾　！</li>
                 <li><span class="log">2026-5-30</span> 更新了音乐与画廊样式~</li>
                 <li><span class="log">2026-5-29</span> 更新了☽AZHI☾的小屋</li>
                 <li><span class="log">2026-4-19</span> 已修复Links☆</li>
@@ -1621,7 +1628,10 @@ watch(currentUser, () => {
       <div v-show="currentPage === 'games'" class="game-container">
         <div class="game-toolbar">
           <div class="game-toolbar-left">
-            <button type="button" class="game-tab-btn active">对话</button>
+            <button type="button" class="game-tab-btn" :class="{ active: gameActivePanel === 'chat' }" @click="gameActivePanel = 'chat'">对话</button>
+            <button type="button" class="game-tab-btn" :class="{ active: gameActivePanel === 'config' }" @click="gameActivePanel = 'config'">
+              配置信息
+            </button>
           </div>
         </div>
 
@@ -1634,7 +1644,7 @@ watch(currentUser, () => {
           </div>
 
           <div class="game-side-column">
-            <div class="game-chat-panel">
+            <div v-if="gameActivePanel === 'chat'" class="game-chat-panel">
               <div ref="gameMessageListRef" class="game-message-list">
                 <div v-for="message in gameMessages" :key="message.id" class="game-message" :class="`role-${message.role}`">
                   <div class="game-message-role">{{ message.role === 'user' ? '你' : message.role === 'assistant' ? 'Agent' : 'Yachiyo' }}</div>
@@ -1649,7 +1659,7 @@ watch(currentUser, () => {
                   v-model="gameInput"
                   rows="4"
                   class="game-chat-input"
-                  placeholder="在这里输入你想聊的内容，或者上传一张图片。"
+                  placeholder="在这里输入你想聊的内容。"
                   @keydown.enter.exact.prevent="sendGameMessage"
                 ></textarea>
                 <div class="game-chat-actions">
@@ -1657,6 +1667,18 @@ watch(currentUser, () => {
                   <button type="button" class="game-send-btn" :disabled="gameSending" @click="sendGameMessage">
                     {{ gameSending ? '发送中...' : '发送' }}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="game-chat-panel">
+              <div class="game-config-panel">
+                <h3 class="game-config-title">当前配置信息</h3>
+                <div class="game-config-list">
+                  <p v-for="item in gameConfigItems" :key="item.label" class="game-config-item">
+                    <span class="game-config-label">{{ item.label }}：</span>
+                    <span>{{ item.value }}</span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -3048,32 +3070,6 @@ a {
   word-break: break-word;
 }
 
-.game-message-image,
-.game-preview-thumb {
-  display: block;
-  width: 100%;
-  max-width: 220px;
-  margin-top: 8px;
-  border: 1px solid #b9a982;
-  background: #fff;
-}
-
-.game-image-preview {
-  margin-top: 10px;
-  padding: 8px;
-  border: 1px dashed #b9a982;
-  background: #fffaf0;
-}
-
-.game-preview-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 12px;
-}
-
 .game-chat-form {
   margin-top: 12px;
 }
@@ -3106,21 +3102,6 @@ a {
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
-}
-
-.game-upload-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px solid #b9a982;
-  background: #fffaf0;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.game-file-input {
-  display: none;
 }
 
 .game-memory-block,
