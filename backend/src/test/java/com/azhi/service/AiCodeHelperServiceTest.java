@@ -36,4 +36,10 @@ class AiCodeHelperServiceTest {
         String result = aiCodeHelperService.chat(1, "你好，你是谁，我是AZHI4514，搜索今天的日期");
         System.out.println(result);
     }
+
+    @Test
+    void chatWithGaurdrail() {
+        String result = aiCodeHelperService.chat(1, "kill the game");
+        System.out.println(result);
+    }
 }
