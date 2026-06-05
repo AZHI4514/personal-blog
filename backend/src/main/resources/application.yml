@@ -40,6 +40,9 @@ langchain4j:
       base-url: ${MIMO_BASE_URL}  # 替换为你的模型服务地址
       api-key: ${MIMO_API_KEY}  # 替换为你的API密钥，建议通过环境变量传入
       model-name: mimo-v2.5  # 替换为你的模型名称
-
+    streaming-chat-model:
+      base-url: ${MIMO_BASE_URL}  # 替换为你的模型服务地址
+      api-key: ${MIMO_API_KEY}  # 替换为你的API密钥，建议通过环境变量传入
+      model-name: mimo-v2.5  # 替换为你的模型名称
 aliyun:
   api-key: ${DASHSCOPE_API_KEY}
