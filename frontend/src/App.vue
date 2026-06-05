@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
 import { recordVisitor, getTotalVisitors } from '@/api/visitor'
 import { sendClap } from '@/api/clap'
@@ -53,72 +53,18 @@ const adminDeleting = ref({
 })
 const live2dCanvas = ref(null)
 const live2dError = ref('')
-const gamePanelTab = ref('chat')
 const gameMessageListRef = ref(null)
 const gameSending = ref(false)
 const gameInput = ref('')
 const gameMessages = ref([])
-const gameImageAttachment = ref(null)
-const gameWorldLoading = ref(false)
-const gameWorldError = ref('')
-const gameWorld = ref(null)
-const gameSettingsOpen = ref(false)
-const gameKnowledgeDraft = ref({
-  id: '',
-  title: '',
-  content: '',
-  tags: '',
-  enabled: true
-})
-const gameKnowledgeEditingId = ref('')
-const gameLlmSettings = ref({
-  apiUrl: '',
-  apiKey: '',
-  model: 'gpt-4o-mini',
-  visionMode: 'auto'
-})
-const gameMemorySettings = ref({
-  enabled: true
-})
-const gameMcpSettings = ref({
-  enabled: false,
-  endpoint: '',
-  toolAllowlist: 'understand_image,web_search'
-})
-const gameKnowledgeSettings = ref({
-  enabled: true,
-  entries: []
-})
+const gameStreamingMessageId = ref('')
 
 let live2dSdk = null
 let live2dSubdelegate = null
 let live2dAnimationFrame = 0
 let live2dPointerHandlers = null
 let live2dFrameworkReady = false
-
-const DEFAULT_GAME_KNOWLEDGE = [
-  {
-    id: 'yachiyo_identity_001',
-    title: '角色身份',
-    content: '你是游戏角里的房间伙伴，负责陪聊、解答问题、结合房间氛围做出自然回应。',
-    tags: '身份,陪伴,房间',
-    enabled: true
-  },
-  {
-    id: 'yachiyo_style_001',
-    title: '说话风格',
-    content: '语气温和、自然、简洁，不要突然变成命令式客服口吻，优先给出有陪伴感的回应。',
-    tags: '语气,风格',
-    enabled: true
-  },
-  {
-    id: 'yachiyo_boundary_001',
-    title: '互动边界',
-    content: '面对情绪内容先理解感受，面对技术问题清晰拆解，不夸张、不失控，也不要输出破坏氛围的设定外内容。',
-    tags: '边界,规则',
-    enabled: true
-  }
-]
+let gameChatEventSource = null
 
 const handleClap = async () => {
   try {
@@ -753,223 +699,16 @@ const readScopedGameJson = (key, fallback) => readGameJson(getGameScopedKey(key)
 
 const writeScopedGameJson = (key, value) => writeGameJson(getGameScopedKey(key), value)
 
-const createGameKnowledgeEntry = (entry = {}) => ({
-  id: entry.id || `knowledge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-  title: String(entry.title || '').trim(),
-  content: String(entry.content || '').trim(),
-  tags: Array.isArray(entry.tags) ? entry.tags.join(', ') : String(entry.tags || '').trim(),
-  enabled: entry.enabled !== false
-})
+const createGameMemoryId = () => Math.floor(Date.now() % 2147483647)
 
-const cloneDefaultKnowledge = () => DEFAULT_GAME_KNOWLEDGE.map(item => createGameKnowledgeEntry(item))
-
-const compactGameText = (value, limit = 240) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, limit)
-
-const gameWeatherCard = computed(() => {
-  const world = gameWorld.value || {}
-  const map = {
-    clear: { icon: '☀', label: '晴朗' },
-    cloudy: { icon: '☁', label: '多云' },
-    fog: { icon: '〰', label: '薄雾' },
-    rain: { icon: '☂', label: '下雨' },
-    snow: { icon: '❄', label: '下雪' },
-    storm: { icon: '⚡', label: '雷暴' }
+const getGameMemoryId = () => {
+  const stored = Number(readScopedGameJson('roomChatMemoryId', 0))
+  if (Number.isInteger(stored) && stored > 0) {
+    return stored
   }
-  const weather = map[world.weather] || map.clear
-  return {
-    icon: weather.icon,
-    label: weather.label,
-    city: world.city || 'Game Room',
-    temperature: Number.isFinite(Number(world.temperature)) ? `${Math.round(Number(world.temperature))}°C` : '--',
-    wind: Number.isFinite(Number(world.windSpeed)) ? `${Math.round(Number(world.windSpeed))} km/h` : '--',
-    detail: `${world.timePhase || 'day'} / ${world.season || 'summer'} / ${world.locationSource || 'fallback'}`
-  }
-})
-
-const gameRoomTracks = computed(() => musicList.value.map(music => ({
-  id: music.musicId,
-  title: music.title,
-  artist: music.artist,
-  url: music.filePath,
-  cover: music.coverPath
-})).filter(item => item.url))
-
-const currentGameTrack = computed(() => {
-  if (currentMusicIndex.value < 0) return null
-  return gameRoomTracks.value[currentMusicIndex.value] || null
-})
-
-const displayedGameTrack = computed(() => currentGameTrack.value || gameRoomTracks.value[0] || null)
-
-const loadGameLlmSettings = async () => {
-  try {
-    const response = await fetch('/room-agent/config', {
-      credentials: 'include',
-      cache: 'no-store'
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`)
-    Object.assign(gameLlmSettings.value, {
-      apiUrl: result.data?.apiUrl || '',
-      apiKey: result.data?.apiKey || '',
-      model: result.data?.model || '',
-      visionMode: result.data?.visionMode || 'auto'
-    })
-    Object.assign(gameMcpSettings.value, {
-      enabled: Boolean(result.data?.mcpEnabled),
-      endpoint: result.data?.mcpEndpoint || '',
-      toolAllowlist: result.data?.mcpToolAllowlist || 'understand_image,web_search'
-    })
-  } catch (error) {
-    console.error('load game llm config failed', error)
-  }
-}
-
-const loadGameSettings = async () => {
-  await loadGameLlmSettings()
-  Object.assign(gameMemorySettings.value, { enabled: true, ...readGameJson('roomMemorySettings', {}) })
-  const knowledge = readGameJson('roomKnowledgeSettings', {})
-  gameKnowledgeSettings.value.enabled = knowledge.enabled !== false
-  gameKnowledgeSettings.value.entries = Array.isArray(knowledge.entries) && knowledge.entries.length
-    ? knowledge.entries.map(item => createGameKnowledgeEntry(item))
-    : cloneDefaultKnowledge()
-}
-
-const saveGameLlmSettings = async () => {
-  try {
-    const response = await fetch('/room-agent/config', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-User': String(currentUser.value?.username || '')
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        apiUrl: String(gameLlmSettings.value.apiUrl || ''),
-        apiKey: String(gameLlmSettings.value.apiKey || ''),
-        model: String(gameLlmSettings.value.model || ''),
-        visionMode: String(gameLlmSettings.value.visionMode || 'auto')
-      })
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(result.message || `HTTP ${response.status}`)
-    }
-    Object.assign(gameLlmSettings.value, {
-      apiUrl: result.data?.apiUrl || '',
-      apiKey: result.data?.apiKey || '',
-      model: result.data?.model || '',
-      visionMode: result.data?.visionMode || 'auto'
-    })
-    alert('LLM 配置已保存')
-  } catch (error) {
-    console.error('save game llm config failed', error)
-    alert(error.message || '保存 LLM 配置失败')
-  }
-}
-
-const saveGameMemorySettings = () => {
-  writeGameJson('roomMemorySettings', { enabled: Boolean(gameMemorySettings.value.enabled) })
-}
-
-const saveGameMcpSettings = async () => {
-  try {
-    const response = await fetch('/room-agent/config', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-User': String(currentUser.value?.username || '')
-      },
-      credentials: 'include',
-      body: JSON.stringify({
-        mcpEnabled: Boolean(gameMcpSettings.value.enabled),
-        mcpEndpoint: String(gameMcpSettings.value.endpoint || ''),
-        mcpToolAllowlist: String(gameMcpSettings.value.toolAllowlist || 'understand_image,web_search')
-      })
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(result.message || `HTTP ${response.status}`)
-    }
-    Object.assign(gameMcpSettings.value, {
-      enabled: Boolean(result.data?.mcpEnabled),
-      endpoint: result.data?.mcpEndpoint || '',
-      toolAllowlist: result.data?.mcpToolAllowlist || 'understand_image,web_search'
-    })
-    alert('MCP 配置已保存')
-  } catch (error) {
-    console.error('save game mcp config failed', error)
-    alert(error.message || '保存 MCP 配置失败')
-  }
-}
-
-const saveGameKnowledgeSettings = () => {
-  gameKnowledgeSettings.value.entries = gameKnowledgeSettings.value.entries
-    .map(item => createGameKnowledgeEntry(item))
-    .filter(item => item.title || item.content)
-  writeGameJson('roomKnowledgeSettings', {
-    enabled: Boolean(gameKnowledgeSettings.value.enabled),
-    entries: gameKnowledgeSettings.value.entries
-  })
-}
-
-const resetGameKnowledgeDraft = () => {
-  gameKnowledgeEditingId.value = ''
-  gameKnowledgeDraft.value = {
-    id: '',
-    title: '',
-    content: '',
-    tags: '',
-    enabled: true
-  }
-}
-
-const editGameKnowledgeEntry = (item) => {
-  gameKnowledgeEditingId.value = item.id
-  gameKnowledgeDraft.value = createGameKnowledgeEntry(item)
-}
-
-const saveGameKnowledgeEntry = () => {
-  const entry = createGameKnowledgeEntry(gameKnowledgeDraft.value)
-  if (!entry.title || !entry.content) return
-  const index = gameKnowledgeSettings.value.entries.findIndex(item => item.id === gameKnowledgeEditingId.value)
-  if (index >= 0) gameKnowledgeSettings.value.entries[index] = { ...entry, id: gameKnowledgeEditingId.value }
-  else gameKnowledgeSettings.value.entries.unshift(entry)
-  resetGameKnowledgeDraft()
-  saveGameKnowledgeSettings()
-}
-
-const deleteGameKnowledgeEntry = (item) => {
-  gameKnowledgeSettings.value.entries = gameKnowledgeSettings.value.entries.filter(entry => entry.id !== item.id)
-  if (gameKnowledgeEditingId.value === item.id) resetGameKnowledgeDraft()
-  saveGameKnowledgeSettings()
-}
-
-const resetGameKnowledgeDefaults = () => {
-  gameKnowledgeSettings.value.enabled = true
-  gameKnowledgeSettings.value.entries = cloneDefaultKnowledge()
-  resetGameKnowledgeDraft()
-  saveGameKnowledgeSettings()
-}
-
-const loadGameWorld = async () => {
-  gameWorldLoading.value = true
-  gameWorldError.value = ''
-  try {
-    const query = new URLSearchParams({ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai' })
-    const response = await fetch(`/room-agent/world?${query.toString()}`, {
-      credentials: 'include',
-      cache: 'no-store'
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`)
-    gameWorld.value = result.data || null
-  } catch (error) {
-    console.error('load game world failed', error)
-    gameWorldError.value = error.message || 'load world failed'
-  } finally {
-    gameWorldLoading.value = false
-  }
+  const nextId = createGameMemoryId()
+  writeScopedGameJson('roomChatMemoryId', nextId)
+  return nextId
 }
 
 const createGameMessage = (role, content, options = {}) => ({
@@ -991,7 +730,7 @@ const loadGameChatHistory = () => {
   const history = readScopedGameJson('roomChatHistory', [])
   if (!Array.isArray(history) || !history.length) {
     gameMessages.value = [
-      createGameMessage('assistant', '欢迎来到游戏角。这里已经接入了 agent 模板，你可以直接和我聊天，也可以打开设置面板配置模型。')
+      createGameMessage('assistant', '欢迎来到游戏角。这里已经接入了 Yachiyo 的聊天助手')
     ]
     return
   }
@@ -1005,228 +744,109 @@ const persistGameChatHistory = () => {
   })))
 }
 
-const loadGameLocalMemories = () => {
-  const memories = readScopedGameJson('roomAgentMemories', [])
-  return Array.isArray(memories) ? memories : []
-}
-
-const persistGameLocalMemories = (memories) => {
-  writeScopedGameJson('roomAgentMemories', memories)
-}
-
-const buildGameMemoryItem = (userMessage, assistantReply) => {
-  const content = `user: ${String(userMessage || '').trim()}\nassistant: ${String(assistantReply || '').trim()}`.trim()
-  if (content.length < 12) return null
-  const summary = content.length > 220 ? `${content.slice(0, 220)}...` : content
-  return {
-    id: `memory-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    type: 'conversation',
-    summary,
-    content,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+const closeGameEventSource = () => {
+  if (gameChatEventSource) {
+    gameChatEventSource.close()
+    gameChatEventSource = null
   }
 }
 
-const fetchGameRelevantMemories = async (message) => {
-  if (gameMemorySettings.value.enabled === false) return []
-  const query = String(message || '').trim().toLowerCase()
-  const tokens = query.split(/[\s,，。！？、；:：()[\]{}"'`]+/).filter(Boolean)
-  const memories = loadGameLocalMemories()
-  if (!tokens.length) {
-    return memories.slice(0, 5)
+const updateGameMessageContent = (messageId, updater) => {
+  const index = gameMessages.value.findIndex(item => item.id === messageId)
+  if (index < 0) return
+  const current = gameMessages.value[index]
+  gameMessages.value[index] = {
+    ...current,
+    content: updater(current.content || '')
   }
-  return memories
-    .map((item, index) => {
-      const haystack = `${item.summary || ''} ${item.content || ''}`.toLowerCase()
-      const score = tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0) + (index < 3 ? 1 : 0)
-      return { ...item, score, index }
-    })
-    .filter(item => item.score > 0)
-    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
-    .slice(0, 5)
-}
-
-const buildGameKnowledgeContext = (message) => {
-  if (gameKnowledgeSettings.value.enabled === false) return ''
-  const query = String(message || '').toLowerCase()
-  const tokens = query.split(/[\s,，。！？、；:：()[\]]+/).filter(item => item.length >= 2).slice(0, 12)
-  const entries = gameKnowledgeSettings.value.entries.filter(item => item.enabled !== false)
-  const picked = entries
-    .map((item, index) => {
-      const haystack = `${item.title || ''} ${item.tags || ''} ${item.content || ''}`.toLowerCase()
-      const score = tokens.reduce((sum, token) => sum + (haystack.includes(token) ? 1 : 0), 0) + (index < 3 ? 1 : 0)
-      return { ...item, score, index }
-    })
-    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
-    .slice(0, 6)
-  if (!picked.length) return ''
-  return ['角色知识库：', ...picked.map((item, index) => `${index + 1}. ${compactGameText(`${item.title}：${item.content}`, 220)}`)].join('\n')
-}
-
-const buildGameMemoryContext = (memories) => {
-  if (!memories.length) return ''
-  return ['相关长期记忆：', ...memories.map((item, index) => `${index + 1}. [${item.type || 'memory'}] ${compactGameText(item.summary || item.content || '', 180)}`)].join('\n')
-}
-
-const shouldGameUseWebSearch = (message) => /(搜索|查一下|最新|官网|新闻|search|web)/i.test(String(message || ''))
-
-const getGameMcpToolNames = () => String(gameMcpSettings.value.toolAllowlist || '')
-  .split(',')
-  .map(item => item.trim())
-  .filter(Boolean)
-
-const pickGameSearchToolName = () => {
-  const names = getGameMcpToolNames()
-  if (!names.length) return ''
-  if (names.includes('web_search')) return 'web_search'
-  return names.find(name => name !== 'understand_image') || ''
-}
-
-const pickGameVisionToolName = () => {
-  const names = getGameMcpToolNames()
-  return names.includes('understand_image') ? 'understand_image' : ''
-}
-
-const callGameMcpTool = async (name, args = {}) => {
-  if (!gameMcpSettings.value.enabled) return ''
-  const response = await fetch('/room-agent/mcp/call', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ name, args })
+  nextTick(() => {
+    if (gameMessageListRef.value) gameMessageListRef.value.scrollTop = gameMessageListRef.value.scrollHeight
   })
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.message || `MCP ${response.status}`)
-  return String(result.data?.text || '')
-}
-
-const buildGameRoomContext = async (message, image) => {
-  const blocks = []
-  const knowledge = buildGameKnowledgeContext(message)
-  if (knowledge) blocks.push(knowledge)
-  const memories = await fetchGameRelevantMemories(message).catch(() => [])
-  const memoryText = buildGameMemoryContext(memories)
-  if (memoryText) blocks.push(memoryText)
-  const visionToolName = pickGameVisionToolName()
-  if (image && visionToolName && (gameLlmSettings.value.visionMode === 'mcp' || gameLlmSettings.value.visionMode === 'auto')) {
-    const imageText = await callGameMcpTool(visionToolName, {
-      imageData: image.dataUrl,
-      prompt: message || '请结合这张图片描述当前内容。'
-    }).catch(() => '')
-    if (imageText) blocks.push(`图片理解结果：\n${imageText}`)
-  }
-  const searchToolName = pickGameSearchToolName()
-  if (!image && searchToolName && shouldGameUseWebSearch(message)) {
-    const searchText = await callGameMcpTool(searchToolName, { query: message }).catch(() => '')
-    if (searchText) blocks.push(`搜索结果：\n${searchText}`)
-  }
-  if (gameWorld.value) blocks.push(`房间状态：${gameWeatherCard.value.label}，${gameWeatherCard.value.temperature}，${gameWeatherCard.value.detail}`)
-  return blocks.filter(Boolean).join('\n\n')
-}
-
-const buildGameSystemPrompt = () => [
-  '你是个人博客游戏角页面中的房间伙伴。',
-  '请保持自然、温和、简洁的中文表达。',
-  '如果有角色知识库和长期记忆，要优先参考，但不要机械复述。',
-  '面对普通聊天时自然回应，面对技术问题时可以给出清晰步骤。'
-].join('\n')
-
-const fallbackGameReply = (message, image) => {
-  if (image) return '我收到图片了。当前还没有配置可用的视觉模型时，我会先保留这张图，等你补上 API Key 后再继续分析。'
-  return message ? `我听到了：${message}` : '我在这里。'
-}
-
-const extractGameReply = (data) => data?.data?.reply || data?.reply || data?.data?.output_text || data?.output_text || data?.data?.choices?.[0]?.message?.content || data?.choices?.[0]?.message?.content || ''
-
-const rememberGameConversation = async (userMessage, assistantReply) => {
-  if (gameMemorySettings.value.enabled === false) return
-  const candidate = buildGameMemoryItem(userMessage, assistantReply)
-  if (!candidate) return
-  const next = [candidate, ...loadGameLocalMemories()].slice(0, 60)
-  persistGameLocalMemories(next)
 }
 
 const clearGameConversationAndMemory = async () => {
   const confirmed = window.confirm('确定要清空当前对话和长期记忆吗？')
   if (!confirmed) return
   try {
+    closeGameEventSource()
     gameMessages.value = [
       createGameMessage('assistant', '欢迎回到游戏角。之前的对话和记忆已经清空，我们可以重新开始。')
     ]
     writeScopedGameJson('roomChatHistory', [])
-    writeScopedGameJson('roomAgentMemories', [])
+    writeScopedGameJson('roomChatMemoryId', createGameMemoryId())
+    gameStreamingMessageId.value = ''
     nextTick(() => {
       if (gameMessageListRef.value) gameMessageListRef.value.scrollTop = gameMessageListRef.value.scrollHeight
     })
   } catch (error) {
     console.error('clear game conversation failed', error)
-    alert(error.message || '清空失败')
+    alert(error.message || '清空对话失败')
   }
-}
-
-const attachGameImage = async (event) => {
-  const file = event.target.files?.[0]
-  if (!file || !/^image\//.test(file.type)) return
-  const reader = new FileReader()
-  gameImageAttachment.value = await new Promise((resolve, reject) => {
-    reader.onload = () => resolve({
-      name: file.name || 'image',
-      type: file.type,
-      size: file.size,
-      dataUrl: String(reader.result || '')
-    })
-    reader.onerror = () => reject(reader.error || new Error('image read failed'))
-    reader.readAsDataURL(file)
-  })
-  event.target.value = ''
-}
-
-const clearGameImage = () => {
-  gameImageAttachment.value = null
 }
 
 const sendGameMessage = async () => {
   const message = gameInput.value.trim()
-  const image = gameImageAttachment.value
-  if (!message && !image) return
-  addGameMessage('user', message || '请看这张图片。', { image })
+  if (!message || gameSending.value) return
+
+  closeGameEventSource()
+  addGameMessage('user', message)
   gameInput.value = ''
-  gameImageAttachment.value = null
   gameSending.value = true
 
   try {
-    const history = gameMessages.value
-      .filter(item => item.role === 'user' || item.role === 'assistant')
-      .slice(-12)
-      .map(item => ({ role: item.role, content: item.content }))
-    const roomContext = await buildGameRoomContext(message, image)
-    const systemPrompt = [buildGameSystemPrompt(), roomContext].filter(Boolean).join('\n\n')
-    const response = await fetch('/room-agent/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        message,
-        image,
-        conversation: history,
-        systemPrompt
-      })
-    })
-    const result = response.ok
-      ? await response.json()
-      : await response.json().catch(() => ({ message: `LLM ${response.status}` }))
-    if (!response.ok) throw new Error(result.message || `LLM ${response.status}`)
+    const assistantMessage = createGameMessage('assistant', '')
+    gameMessages.value.push(assistantMessage)
+    gameStreamingMessageId.value = assistantMessage.id
 
-    const reply = extractGameReply(result) || fallbackGameReply(message, image)
-    addGameMessage('assistant', reply)
-    persistGameChatHistory()
-    rememberGameConversation(message || '[image]', reply)
+    const params = new URLSearchParams({
+      memoryId: String(getGameMemoryId()),
+      message
+    })
+    const eventSource = new EventSource(`/ai/chat?${params.toString()}`)
+    gameChatEventSource = eventSource
+
+    eventSource.onmessage = (event) => {
+      if (!event.data) return
+      updateGameMessageContent(assistantMessage.id, (content) => `${content}${event.data}`)
+    }
+
+    eventSource.addEventListener('done', () => {
+      persistGameChatHistory()
+      gameSending.value = false
+      gameStreamingMessageId.value = ''
+      closeGameEventSource()
+    })
+
+    eventSource.addEventListener('error', (event) => {
+      const errorMessage = event?.data || '????????'
+      const currentContent = gameMessages.value.find(item => item.id === assistantMessage.id)?.content?.trim()
+      if (!currentContent) {
+        updateGameMessageContent(assistantMessage.id, () => `?????${errorMessage}`)
+      }
+      persistGameChatHistory()
+      gameSending.value = false
+      gameStreamingMessageId.value = ''
+      closeGameEventSource()
+    })
+
+    eventSource.onerror = () => {
+      if (!gameChatEventSource) return
+      const currentContent = gameMessages.value.find(item => item.id === assistantMessage.id)?.content?.trim()
+      if (!currentContent) {
+        updateGameMessageContent(assistantMessage.id, () => '?????????????')
+      }
+      persistGameChatHistory()
+      gameSending.value = false
+      gameStreamingMessageId.value = ''
+      closeGameEventSource()
+    }
   } catch (error) {
     console.error('send game message failed', error)
     addGameMessage('system', `发送失败：${error.message}`)
-  } finally {
+    persistGameChatHistory()
     gameSending.value = false
+    gameStreamingMessageId.value = ''
+    closeGameEventSource()
   }
 }
 
@@ -1494,6 +1114,7 @@ const mountLive2d = async () => {
 }
 
 onBeforeUnmount(() => {
+  closeGameEventSource()
   destroyLive2d()
   releaseAudio()
 })
@@ -1554,13 +1175,11 @@ async function loadGallery() {
 
 onMounted(() => {
   resetAdminForms()
-  loadGameSettings()
   loadGameChatHistory()
   recordAndGetVisitor()
   loadGallery()
   loadPosts()
   loadMusicList()
-  loadGameWorld()
 
   if (currentPage.value === 'games') {
     mountLive2d()
@@ -1569,10 +1188,6 @@ onMounted(() => {
 
 watch(currentPage, async (pageName) => {
   if (pageName === 'games') {
-    loadGameWorld()
-    if (!gameRoomTracks.value.length) {
-      await loadMusicList()
-    }
     await nextTick()
     await mountLive2d()
     return
@@ -1589,10 +1204,7 @@ watch(live2dCanvas, async (canvas) => {
   await mountLive2d()
 })
 
-watch(currentUser, (user) => {
-  if (user?.username !== 'AZHI4514') {
-    gameSettingsOpen.value = false
-  }
+watch(currentUser, () => {
   loadGameChatHistory()
 })
 </script>
@@ -2009,51 +1621,26 @@ watch(currentUser, (user) => {
       <div v-show="currentPage === 'games'" class="game-container">
         <div class="game-toolbar">
           <div class="game-toolbar-left">
-            <button type="button" class="game-tab-btn" :class="{ active: gamePanelTab === 'chat' }" @click="gamePanelTab = 'chat'">对话</button>
-            <button type="button" class="game-tab-btn" :class="{ active: gamePanelTab === 'memory' }" @click="gamePanelTab = 'memory'">记忆/设定</button>
+            <button type="button" class="game-tab-btn active">对话</button>
           </div>
-          <button v-if="isAdmin" type="button" class="game-settings-btn" @click="gameSettingsOpen = !gameSettingsOpen">
-            {{ gameSettingsOpen ? '收起设置' : '打开设置' }}
-          </button>
         </div>
 
         <div class="game-layout">
           <div class="game-main-column">
             <div class="live2d-stage">
               <canvas ref="live2dCanvas" class="live2d-canvas"></canvas>
-              <div class="game-overlay-card world-card">
-                <div class="world-card-header">
-                  <span class="world-card-icon">{{ gameWeatherCard.icon }}</span>
-                  <strong>房间状态</strong>
-                </div>
-                <p>{{ gameWeatherCard.city }} / {{ gameWeatherCard.label }}</p>
-                <p>{{ gameWeatherCard.temperature }} / 风速 {{ gameWeatherCard.wind }}</p>
-                <p>{{ gameWeatherCard.detail }}</p>
-                <p v-if="gameWorldLoading" class="game-muted">加载中...</p>
-                <p v-if="gameWorldError" class="game-error-text">{{ gameWorldError }}</p>
-              </div>
               <div v-if="live2dError" class="live2d-error">{{ live2dError }}</div>
             </div>
-
           </div>
 
           <div class="game-side-column">
-            <div v-if="gamePanelTab === 'chat'" class="game-chat-panel">
+            <div class="game-chat-panel">
               <div ref="gameMessageListRef" class="game-message-list">
                 <div v-for="message in gameMessages" :key="message.id" class="game-message" :class="`role-${message.role}`">
-                  <div class="game-message-role">{{ message.role === 'user' ? '你' : message.role === 'assistant' ? 'Agent' : '系统' }}</div>
+                  <div class="game-message-role">{{ message.role === 'user' ? '你' : message.role === 'assistant' ? 'Agent' : 'Yachiyo' }}</div>
                   <div class="game-message-body">
                     <p>{{ message.content }}</p>
-                    <img v-if="message.image?.dataUrl" :src="message.image.dataUrl" :alt="message.image.name || 'image'" class="game-message-image">
                   </div>
-                </div>
-              </div>
-
-              <div v-if="gameImageAttachment" class="game-image-preview">
-                <img :src="gameImageAttachment.dataUrl" :alt="gameImageAttachment.name || 'image'" class="game-preview-thumb">
-                <div class="game-preview-meta">
-                  <span>{{ gameImageAttachment.name }}</span>
-                  <button type="button" class="game-link-btn" @click="clearGameImage">移除</button>
                 </div>
               </div>
 
@@ -2066,10 +1653,6 @@ watch(currentUser, (user) => {
                   @keydown.enter.exact.prevent="sendGameMessage"
                 ></textarea>
                 <div class="game-chat-actions">
-                  <label class="game-upload-label">
-                    上传图片
-                    <input type="file" accept="image/*" class="game-file-input" @change="attachGameImage">
-                  </label>
                   <button type="button" class="game-link-btn" @click="clearGameConversationAndMemory">清空对话/记忆</button>
                   <button type="button" class="game-send-btn" :disabled="gameSending" @click="sendGameMessage">
                     {{ gameSending ? '发送中...' : '发送' }}
@@ -2077,111 +1660,10 @@ watch(currentUser, (user) => {
                 </div>
               </div>
             </div>
-
-            <div v-else class="game-memory-panel">
-              <div class="game-memory-block">
-                <h3>当前配置</h3>
-                <p>长期记忆：{{ gameMemorySettings.enabled ? '已启用' : '已关闭' }}</p>
-                <p>MCP：{{ gameMcpSettings.enabled ? '已启用' : '已关闭' }}</p>
-                <p>知识库条目：{{ gameKnowledgeSettings.entries.length }}</p>
-                <p>模型：{{ gameLlmSettings.model || 'gpt-4o-mini' }}</p>
-              </div>
-              <div class="game-memory-block">
-                <h3>房间音乐</h3>
-                <p v-if="gameRoomTracks.length">已接入你现有音乐列表，共 {{ gameRoomTracks.length }} 首。</p>
-                <p v-else>当前没有可用音乐。</p>
-              </div>
-            </div>
           </div>
-        </div>
-
-        <div v-if="isAdmin && gameSettingsOpen" class="game-settings-panel">
-          <div class="game-settings-grid">
-            <section class="game-settings-card">
-              <h3>LLM 配置</h3>
-              <label class="game-field">
-                <span>API URL</span>
-                <input v-model="gameLlmSettings.apiUrl" type="text" class="game-field-input" placeholder="先留空，后续你自己填写">
-              </label>
-              <label class="game-field">
-                <span>API Key</span>
-                <input v-model="gameLlmSettings.apiKey" type="password" class="game-field-input" placeholder="留空">
-              </label>
-              <label class="game-field">
-                <span>模型</span>
-                <input v-model="gameLlmSettings.model" type="text" class="game-field-input">
-              </label>
-              <label class="game-field">
-                <span>视觉模式</span>
-                <select v-model="gameLlmSettings.visionMode" class="game-field-input">
-                  <option value="auto">auto</option>
-                  <option value="llm">llm</option>
-                  <option value="mcp">mcp</option>
-                </select>
-              </label>
-              <button type="button" class="game-save-btn" @click="saveGameLlmSettings">保存 LLM 配置</button>
-            </section>
-
-            <section class="game-settings-card">
-              <h3>记忆 / MCP</h3>
-              <label class="game-check"><input v-model="gameMemorySettings.enabled" type="checkbox"> 启用长期记忆</label>
-              <button type="button" class="game-save-btn" @click="saveGameMemorySettings">保存记忆配置</button>
-              <label class="game-check"><input v-model="gameMcpSettings.enabled" type="checkbox"> 启用 MCP</label>
-              <label class="game-field">
-                <span>Endpoint</span>
-                <input v-model="gameMcpSettings.endpoint" type="text" class="game-field-input" placeholder="可留空">
-              </label>
-              <label class="game-field">
-                <span>Allowlist</span>
-                <input v-model="gameMcpSettings.toolAllowlist" type="text" class="game-field-input">
-              </label>
-              <button type="button" class="game-save-btn" @click="saveGameMcpSettings">保存 MCP 配置</button>
-            </section>
-          </div>
-
-          <section class="game-settings-card knowledge-card">
-            <h3>角色知识库</h3>
-            <label class="game-check"><input v-model="gameKnowledgeSettings.enabled" type="checkbox"> 启用知识库注入</label>
-            <div class="game-knowledge-form">
-              <label class="game-field">
-                <span>标题</span>
-                <input v-model="gameKnowledgeDraft.title" type="text" class="game-field-input">
-              </label>
-              <label class="game-field">
-                <span>内容</span>
-                <textarea v-model="gameKnowledgeDraft.content" rows="3" class="game-field-input game-textarea"></textarea>
-              </label>
-              <label class="game-field">
-                <span>标签</span>
-                <input v-model="gameKnowledgeDraft.tags" type="text" class="game-field-input">
-              </label>
-              <label class="game-check"><input v-model="gameKnowledgeDraft.enabled" type="checkbox"> 启用该条目</label>
-              <div class="game-inline-actions">
-                <button type="button" class="game-save-btn" @click="saveGameKnowledgeEntry">{{ gameKnowledgeEditingId ? '保存条目' : '新增条目' }}</button>
-                <button type="button" class="game-link-btn" @click="resetGameKnowledgeDraft">清空表单</button>
-                <button type="button" class="game-link-btn" @click="saveGameKnowledgeSettings">保存知识库</button>
-                <button type="button" class="game-link-btn" @click="resetGameKnowledgeDefaults">恢复默认</button>
-              </div>
-            </div>
-            <div class="game-knowledge-list">
-              <article v-for="item in gameKnowledgeSettings.entries" :key="item.id" class="game-knowledge-item">
-                <div class="game-knowledge-head">
-                  <strong>{{ item.title }}</strong>
-                  <span class="game-knowledge-state">{{ item.enabled ? '启用中' : '已关闭' }}</span>
-                </div>
-                <p>{{ item.content }}</p>
-                <small>{{ item.tags }}</small>
-                <div class="game-inline-actions">
-                  <button type="button" class="game-link-btn" @click="editGameKnowledgeEntry(item)">编辑</button>
-                  <button type="button" class="game-link-btn" @click="deleteGameKnowledgeEntry(item)">删除</button>
-                </div>
-              </article>
-            </div>
-          </section>
         </div>
       </div>
 
-      <!-- BBS/留言板结构 -->
       <div v-if="currentPage === 'bbs'" class="bbs-container">
         <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>☽AZHI☾的小屋<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
 

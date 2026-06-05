@@ -1,6 +1,6 @@
 # **☽星尘观测站☾**
 
-Vue 3 + Spring Boot personal blog, prepared for local development and production deployment.
+personal blog project
 
 ## 技术栈
 

@@ -50,7 +50,7 @@ export default defineConfig(async ({ command }) => {
           target: 'http://localhost:8080',
           changeOrigin: true
         },
-        '/room-agent': {
+        '/ai': {
           target: 'http://localhost:8080',
           changeOrigin: true
         },
