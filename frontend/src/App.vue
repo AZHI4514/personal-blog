@@ -186,7 +186,7 @@ const handleAdminMusicUpload = async (event) => {
     adminMusicForm.value.filePath = res.filePath
   } catch (err) {
     console.error('音乐上传失败', err)
-    alert('音乐上传失败，请稍后再试')
+    alert(err.message || '音乐上传失败，请稍后再试')
   } finally {
     adminUploading.value.music = false
     event.target.value = ''

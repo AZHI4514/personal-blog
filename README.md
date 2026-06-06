@@ -286,6 +286,8 @@ DB_USERNAME=your_db_user
 DB_PASSWORD=your_db_password
 UPLOAD_PATH=/opt/personal-blog/uploads
 CORS_ALLOWED_ORIGINS=https://your-domain.com
+MULTIPART_MAX_FILE_SIZE=50MB
+MULTIPART_MAX_REQUEST_SIZE=50MB
 MIMO_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 MIMO_API_KEY=your_mimo_api_key
 DASHSCOPE_API_KEY=your_dashscope_api_key
@@ -369,6 +371,8 @@ Nginx 需要至少代理这些路径到后端：
 至少应改成 `location ~ ^/(posts|images|uploads|musics|clap|users|visitor-stats|ai)(/|$)`，或者直接分别使用前缀匹配。
 
 其中 `/ai/chat` 是 SSE 接口，反向代理时不要把它改成只允许 `POST`，否则会出现 `HTTP 405`。
+如果要上传音乐，Nginx 还需要显式设置 `client_max_body_size`，否则可能在请求到达 Spring Boot 之前就被拒绝。
+例如可以在 `server` 块里加入 `client_max_body_size 50M;`。
 
 ### 7. 上传目录
 
