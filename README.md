@@ -364,6 +364,10 @@ Nginx 需要至少代理这些路径到后端：
 - `/visitor-stats`
 - `/ai`
 
+如果使用正则 location，不要写成 `location ~ ^/(posts|images|uploads|musics|clap|users|visitor-stats|ai)/`。
+这个写法只会匹配 `/posts/123` 这类带下一级路径的请求，不会匹配 `GET /posts`、`GET /images`、`GET /musics`。
+至少应改成 `location ~ ^/(posts|images|uploads|musics|clap|users|visitor-stats|ai)(/|$)`，或者直接分别使用前缀匹配。
+
 其中 `/ai/chat` 是 SSE 接口，反向代理时不要把它改成只允许 `POST`，否则会出现 `HTTP 405`。
 
 ### 7. 上传目录
