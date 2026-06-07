@@ -60,6 +60,7 @@ const gameSending = ref(false)
 const gameInput = ref('')
 const gameMessages = ref([])
 const gameStreamingMessageId = ref('')
+const startupErrors = ref([])
 
 let live2dSdk = null
 let live2dSubdelegate = null
@@ -67,6 +68,20 @@ let live2dAnimationFrame = 0
 let live2dPointerHandlers = null
 let live2dFrameworkReady = false
 let gameChatEventSource = null
+
+const collectStartupError = (label, error) => {
+  const message = error?.stack || error?.message || String(error)
+  console.error(`${label} failed`, error)
+  startupErrors.value.push(`${label}: ${message}`)
+}
+
+const runStartupTask = async (label, task) => {
+  try {
+    await task()
+  } catch (error) {
+    collectStartupError(label, error)
+  }
+}
 
 const gameConfigItems = [
   { label: '使用模型', value: 'Mimo-v2.5' },
@@ -1173,23 +1188,26 @@ async function loadGallery() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   resetAdminForms()
-  loadGameChatHistory()
-  recordAndGetVisitor()
-  loadGallery()
-  loadPosts()
-  loadMusicList()
+
+  await runStartupTask('loadGameChatHistory', async () => {
+    loadGameChatHistory()
+  })
+  await runStartupTask('recordAndGetVisitor', recordAndGetVisitor)
+  await runStartupTask('loadGallery', loadGallery)
+  await runStartupTask('loadPosts', loadPosts)
+  await runStartupTask('loadMusicList', loadMusicList)
 
   if (currentPage.value === 'games') {
-    mountLive2d()
+    await runStartupTask('mountLive2d', mountLive2d)
   }
 })
 
 watch(currentPage, async (pageName) => {
   if (pageName === 'games') {
     await nextTick()
-    await mountLive2d()
+    await runStartupTask('mountLive2d', mountLive2d)
     return
   }
 
@@ -1201,7 +1219,7 @@ watch(live2dCanvas, async (canvas) => {
   if (!canvas || currentPage.value !== 'games') {
     return
   }
-  await mountLive2d()
+  await runStartupTask('mountLive2d', mountLive2d)
 })
 
 watch(currentUser, () => {
@@ -1227,6 +1245,9 @@ watch(currentUser, () => {
         >
           {{ isLoggedIn ? currentUser.username : '未登录' }}
         </button>
+      </div>
+      <div v-if="startupErrors.length" class="startup-error-banner">
+        {{ startupErrors[0] }}
       </div>
       <div v-if="isAuthMenuOpen" class="mobile-auth-popover">
         <div class="auth-status mobile-auth-status">
@@ -2019,6 +2040,23 @@ a {
   padding: 0 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.25);
   box-sizing: border-box;
+}
+
+.startup-error-banner {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: calc(100% + 4px);
+  z-index: 10000;
+  padding: 6px 8px;
+  background: #fff4d6;
+  color: #800000;
+  border: 1px solid #b9a982;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
 }
 
 .mobile-menu-btn {
