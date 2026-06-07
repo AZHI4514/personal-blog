@@ -28,7 +28,10 @@ export default defineConfig(async ({ command }) => {
     plugins,
     build: {
       // Keep CSS output conservative for older mobile WebViews.
-      cssTarget: ['chrome61', 'safari11']
+      cssTarget: ['chrome61', 'safari11'],
+      sourcemap: false,        // 关键：关闭 sourcemap 省内存
+      minify: 'terser',
+      chunkSizeWarningLimit: 500
     },
     resolve: {
       alias: {
