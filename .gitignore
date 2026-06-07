@@ -1,16 +1,22 @@
 # Dependencies
 node_modules/
+frontend/node_modules/
 
 # Build outputs
 dist/
+frontend/dist/
 target/
-deploy/
+backend/target/
 
 # Environment files
 .env
 .env.*
 !.env.example
-.env.example
+
+# Local deployment scratch files
+deploy/*.local
+deploy/*.bak
+*.tmp
 
 # OS files
 .DS_Store
@@ -22,18 +28,23 @@ Thumbs.db
 
 # Logs
 *.log
+backend/log/
+backend/*.log
 
 # Python
 __pycache__/
 
-# Coverage
+# Coverage and cache
 coverage/
+.cache/
+tmp/
+temp/
+
 # Media and uploaded files
 backend/uploads/
 backend/src/main/resources/static/uploads/
+uploads/
 *.mp3
-backend/log/
-backend/*.log
 
 # Private docs and backups
 blog_db_backup.sql
