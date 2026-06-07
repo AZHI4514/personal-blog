@@ -122,6 +122,55 @@ personal-blog/
 
 对应别名配置位于 [frontend/vite.config.js](/abs/path/D:/personal-blog/frontend/vite.config.js:1)。
 
+### Live2D 自定义与问题排查
+
+当前站点的 Live2D 逻辑主要集中在 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:1) 中，运行时模型入口为 [frontend/public/Resources/Yachiyo/Yachiyo.model3.json](/abs/path/D:/personal-blog/frontend/public/Resources/Yachiyo/Yachiyo.model3.json:1)。
+
+这次移动端渲染问题的现象是：
+
+- 模型动作和点击反馈正常
+- 但部分手机浏览器只显示黑色轮廓，材质贴图没有正常显示
+
+这类问题通常不是动作系统坏了，而是贴图资源或移动端 WebGL 兼容性问题。当前项目已经针对这类情况做了两项处理：
+
+- 运行时资源路径改为优先使用 ASCII 名称，避免部分移动端对中文路径兼容不稳定
+- Live2D 运行时贴图尺寸从原始超大纹理降到更适合移动端的级别，降低旧手机或 WebView 因最大纹理尺寸不足而导致贴图发黑的概率
+
+如果后续再次出现 Live2D 黑轮廓、贴图缺失、但动作仍正常的情况，优先检查：
+
+- `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` 中引用的贴图路径是否真实存在
+- `frontend/public/Resources/Yachiyo/textures/` 下的 `texture_00.png` 和 `texture_01.png` 是否已经部署到线上
+- 线上是否重新执行了前端构建，并把整个 `frontend/dist/.` 完整复制到站点目录
+
+如果要自定义模型动作、表情或资源，可按下面的方向修改：
+
+- 修改模型入口：
+  `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
+- 替换表情文件：
+  `frontend/public/Resources/Yachiyo/*.exp3.json`
+- 替换物理参数：
+  `frontend/public/Resources/Yachiyo/*.physics3.json`
+- 替换贴图资源：
+  `frontend/public/Resources/Yachiyo/textures/*.png`
+
+当前点击角色触发表情、进入页面加载模型、以及拖动跟随指针等逻辑，主要在 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:868) 之后的 Live2D 初始化代码中。如果要继续自定义：
+
+- 表情触发逻辑可调整 `LAppLive2DManager.prototype.onTap`
+- 模型目录可调整 `live2dDefine.ModelDir`
+- 加载中的提示文案与行为可调整 `mountLive2d` 和 `live2dLoading`
+
+每次修改 Live2D 资源或前端逻辑后，都必须重新执行：
+
+```bash
+cd /opt/personal-blog/frontend
+npm ci
+npm run build
+sudo find /var/www/personal-blog -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+sudo cp -a /opt/personal-blog/frontend/dist/. /var/www/personal-blog/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
 ## 用户认证
 
 当前站点使用 **Session 认证**，不是 JWT 主认证。

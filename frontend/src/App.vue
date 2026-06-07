@@ -54,6 +54,7 @@ const adminDeleting = ref({
 })
 const live2dCanvas = ref(null)
 const live2dError = ref('')
+const live2dLoading = ref(false)
 const gameActivePanel = ref('chat')
 const gameMessageListRef = ref(null)
 const gameSending = ref(false)
@@ -1076,16 +1077,19 @@ const destroyLive2d = () => {
   }
   live2dFrameworkReady = false
   live2dSdk = null
+  live2dLoading.value = false
 }
 
 const mountLive2d = async () => {
   if (currentPage.value !== 'games') {
+    live2dLoading.value = false
     return
   }
 
   await nextTick()
 
   if (!live2dCanvas.value) {
+    live2dLoading.value = true
     return
   }
 
@@ -1093,10 +1097,12 @@ const mountLive2d = async () => {
     if (!live2dPointerHandlers) {
       attachLive2dPointerEvents(live2dSubdelegate, live2dCanvas.value)
     }
+    live2dLoading.value = false
     startLive2dRenderLoop(live2dSubdelegate)
     return
   }
 
+  live2dLoading.value = true
   live2dError.value = ''
 
   try {
@@ -1120,10 +1126,12 @@ const mountLive2d = async () => {
 
     live2dSubdelegate = subdelegate
     attachLive2dPointerEvents(subdelegate, live2dCanvas.value)
+    live2dLoading.value = false
     startLive2dRenderLoop(subdelegate)
   } catch (error) {
     console.error('Live2D initialization failed', error)
     live2dError.value = 'Live2D load failed.'
+    live2dLoading.value = false
     destroyLive2d()
   }
 }
@@ -1654,6 +1662,7 @@ watch(currentUser, () => {
           <div class="game-main-column">
             <div class="live2d-stage">
               <canvas ref="live2dCanvas" class="live2d-canvas"></canvas>
+              <div v-if="live2dLoading && !live2dError" class="live2d-loading">模型加载中...</div>
               <div v-if="live2dError" class="live2d-error">{{ live2dError }}</div>
             </div>
           </div>
@@ -3258,6 +3267,20 @@ a {
   height: 620px;
   touch-action: none;
   background: transparent;
+}
+
+.live2d-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 14px;
+  color: #0f5e6d;
+  background: rgba(255, 254, 247, 0.95);
+  border: 1px solid #b9a982;
+  box-shadow: inset 0 0 0 1px #fff, 2px 2px 0 rgba(0,0,0,0.08);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .live2d-error {
