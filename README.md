@@ -173,20 +173,103 @@ sudo systemctl reload nginx
 
 ## 用户认证
 
-当前站点使用 **Session 认证**，不是 JWT 主认证。
+当前项目的登录认证是 **浏览器 Cookie + 后端 HttpSession** 方案，不是“前端拿到 JWT 后自己保存、自己解析”的那一套。
 
-后端接口：
+可以按下面这个顺序理解整套流程。
+
+### 1. 用户注册或登录时，前端做了什么
+
+前端通过 [frontend/src/api/user.js](/abs/path/D:/personal-blog/frontend/src/api/user.js:1) 调用这 3 个接口：
 
 - `POST /users/register`
 - `POST /users/login`
 - `POST /users/logout`
 
-前端请求实例配置：
+所有请求最终都走 [frontend/src/api/request.js](/abs/path/D:/personal-blog/frontend/src/api/request.js:1) 里的 Axios 实例，这里有一个关键配置：
 
 - `withCredentials: true`
-- 默认携带 Cookie
 
-前端代码中仍保留了 `Authorization` 头兼容逻辑，但当前实际登录态仍以 `HttpSession` 为准。
+它的作用是：
+
+- 登录成功后，浏览器会保存后端返回的 Session Cookie
+- 之后再请求同源接口时，浏览器会自动把这个 Cookie 带上
+- 后端就能根据 Cookie 找回对应的 Session，从而识别“这是不是刚才那个已登录用户”
+
+也就是说，**前端并不会把登录状态当成真正的认证依据保存在本地**，真正有效的登录态在后端 Session 里。
+
+### 2. 后端登录成功后，怎么保存登录态
+
+后端入口在 [backend/src/main/java/com/azhi/controller/UserController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/UserController.java:1)。
+
+注册成功时：
+
+- `POST /users/register`
+- 调用 `userService.register(user)` 创建用户
+- 然后执行 `session.setAttribute("currentUser", registeredUser)`
+
+登录成功时：
+
+- `POST /users/login`
+- 调用 `userService.login(username, password)` 校验账号密码
+- 然后执行 `session.setAttribute("currentUser", user)`
+
+退出登录时：
+
+- `POST /users/logout`
+- 执行 `session.invalidate()`
+- 当前 Session 失效，登录态随之清除
+
+这里最关键的一行是：
+
+- `session.setAttribute("currentUser", user)`
+
+这表示后端把当前登录用户放进了 `HttpSession`，属性名叫 `currentUser`。后面凡是需要判断是否登录的接口，都是看这个值是否存在。
+
+### 3. 密码是怎么校验的
+
+密码逻辑在 [backend/src/main/java/com/azhi/service/impl/UserServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/UserServiceImpl.java:1)。
+
+- 注册时，后端使用 `BCryptPasswordEncoder` 对明文密码做哈希后再入库
+- 登录时，后端先按用户名查用户，再用 `passwordEncoder.matches(...)` 比对密码
+- 返回给前端之前，会把 `user.setPassword(null)`，避免把密码哈希返回出去
+
+所以这个项目不是明文存密码，而是 **BCrypt 哈希存储**。
+
+### 4. 后续接口怎么判断“用户已登录”
+
+以发帖接口为例，代码在 [backend/src/main/java/com/azhi/controller/PostController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/PostController.java:1)。
+
+创建帖子接口：
+
+- `POST /posts`
+- 方法参数里直接接收 `HttpSession session`
+- 先执行 `requireLogin(session)`
+
+`requireLogin(session)` 的判断逻辑很直接：
+
+- 如果 `session.getAttribute("currentUser") == null`
+- 就抛出“请先登录”
+
+也就是说，后端并不会去检查某个前端变量是不是“已登录”，而是每次都从 Session 中取 `currentUser` 判断。
+
+### 5. 为什么代码里还有 `Authorization` 头
+
+[frontend/src/api/request.js](/abs/path/D:/personal-blog/frontend/src/api/request.js:1) 里还有这段兼容逻辑：
+
+- 如果本地 `token` 存在，就带上 `Authorization: Bearer ...`
+
+但从当前后端实现看：
+
+- `UserController` 没有解析 JWT
+- 登录接口也没有返回 token
+- 权限判断实际依赖的是 `HttpSession` 里的 `currentUser`
+
+所以 **当前项目真正生效的是 Session 认证**，`Authorization` 头更像是历史遗留或兼容代码，至少在现在这套后端实现里，它不是主认证链路。
+
+### 6. 用一句话总结前后端分工
+
+- 前端负责提交用户名密码，并在后续请求中通过 `withCredentials: true` 让浏览器自动携带 Session Cookie
+- 后端负责校验密码、创建 Session、把登录用户写入 `currentUser`、并在受保护接口里读取 Session 判断是否已登录
 
 ## AI 对话
 
