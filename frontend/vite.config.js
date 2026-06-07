@@ -1,11 +1,19 @@
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig } from 'vite'
+import legacy from '@vitejs/plugin-legacy'
 import vue from '@vitejs/plugin-vue'
 
 // https://vite.dev/config/
 export default defineConfig(async ({ command }) => {
-  const plugins = [vue()]
+  const plugins = [
+    vue(),
+    legacy({
+      targets: ['defaults', 'Android >= 5', 'iOS >= 10'],
+      renderLegacyChunks: true,
+      modernPolyfills: true
+    })
+  ]
 
   if (command === 'serve') {
     try {
@@ -19,9 +27,7 @@ export default defineConfig(async ({ command }) => {
   return {
     plugins,
     build: {
-      // Some mobile system browsers and embedded WebViews choke on Vite 7's default modern target.
-      // Lowering the target avoids syntax-level startup failures that leave only the background visible.
-      target: ['chrome61', 'safari11'],
+      // Keep CSS output conservative for older mobile WebViews.
       cssTarget: ['chrome61', 'safari11']
     },
     resolve: {
