@@ -1,29 +1,29 @@
 {
   "Version": 3,
   "FileReferences": {
-    "Moc": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.moc3",
+    "Moc": "model.moc3",
     "Textures": [
-      "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.8192/texture_00.png",
-      "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.8192/texture_01.png"
+      "textures/texture_00.png",
+      "textures/texture_01.png"
     ],
-    "Physics": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.physics3.json",
-    "DisplayInfo": "\u516b\u5343\u4ee3\u8f89\u591c\u59ec.cdi3.json",
+    "Physics": "physics.physics3.json",
+    "DisplayInfo": "display.cdi3.json",
     "Expressions": [
       {
         "Name": "tear",
-        "File": "\u773c\u6cea.exp3.json"
+        "File": "tear.exp3.json"
       },
       {
         "Name": "smile_eye",
-        "File": "\u772f\u772f\u773c.exp3.json"
+        "File": "smile_eye.exp3.json"
       },
       {
         "Name": "smile",
-        "File": "\u7b11\u54aa\u54aa.exp3.json"
+        "File": "smile.exp3.json"
       },
       {
         "Name": "blink",
-        "File": "\u6cea\u73e0.exp3.json"
+        "File": "blink.exp3.json"
       }
     ]
   },
