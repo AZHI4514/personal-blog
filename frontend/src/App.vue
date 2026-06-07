@@ -1387,7 +1387,7 @@ watch(currentUser, () => {
               </tr>
               <tr>
                 <td><a href="#" @click.prevent="showPage('links')">链接集</a></td>
-                <td>非常欢迎互换链接☆<br><img src="./assets/images/banner.png" style="width: 10%" alt="网站横幅""></td>
+                <td>非常欢迎互换链接☆<br><img src="./assets/images/banner.png" style="width: 10%" alt="网站横幅"></td>
               </tr>
             </tbody>
           </table>   
