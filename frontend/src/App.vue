@@ -7,6 +7,7 @@ import { createMusic, deleteMusic, getMusics } from '@/api/music'
 import { deletePost } from '@/api/post'
 import { uploadImageFile, uploadMusicFile } from '@/api/upload'
 import { loginUser, logoutUser, registerUser } from '@/api/user'
+import { readJson, removeItem, writeJson } from '@/utils/storage'
 
 const currentPage = ref('home')
 const isSidebarOpen = ref(false)
@@ -16,7 +17,7 @@ const galleryImages = ref([
   { path: 'https://picsum.photos/id/15/200/150', author: '李四' },
   { path: 'https://picsum.photos/id/13/200/150', author: '宋江' }
 ])
-const currentUser = ref(JSON.parse(localStorage.getItem('currentUser') || 'null'))
+const currentUser = ref(readJson('currentUser', null))
 const authMode = ref('login')
 const isAuthMenuOpen = ref(false)
 const authForm = ref({
@@ -101,7 +102,7 @@ const submitAuth = async () => {
       ? await loginUser({ username: authForm.value.username, password: authForm.value.password })
       : await registerUser(authForm.value)
     currentUser.value = user
-    localStorage.setItem('currentUser', JSON.stringify(user))
+    writeJson('currentUser', user)
     authForm.value = { username: '', password: '', email: '' }
     alert(authMode.value === 'login' ? '登录成功' : '注册成功，已自动登录')
     await loadPosts()
@@ -121,7 +122,7 @@ const logout = async () => {
   }
   currentUser.value = null
   isAuthMenuOpen.value = false
-  localStorage.removeItem('currentUser')
+  removeItem('currentUser')
   posts.value = []
   resetForm()
   resetAdminForms()
@@ -686,18 +687,11 @@ const loadMusicList = async () => {
 
 // 组件卸载前释放音频
 const readGameJson = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw == null) return fallback
-    const value = JSON.parse(raw)
-    return value == null ? fallback : value
-  } catch (error) {
-    return fallback
-  }
+  return readJson(key, fallback)
 }
 
 const writeGameJson = (key, value) => {
-  localStorage.setItem(key, JSON.stringify(value))
+  writeJson(key, value)
 }
 
 const getGameUserId = () => currentUser.value?.userId || currentUser.value?.id || currentUser.value?.username || 'guest'

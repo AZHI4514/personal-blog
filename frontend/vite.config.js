@@ -18,6 +18,12 @@ export default defineConfig(async ({ command }) => {
 
   return {
     plugins,
+    build: {
+      // Some mobile system browsers and embedded WebViews choke on Vite 7's default modern target.
+      // Lowering the target avoids syntax-level startup failures that leave only the background visible.
+      target: ['chrome61', 'safari11'],
+      cssTarget: ['chrome61', 'safari11']
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
