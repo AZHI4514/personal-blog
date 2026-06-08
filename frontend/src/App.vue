@@ -1278,7 +1278,7 @@ watch(currentUser, () => {
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('home')">首页</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('profile')">个人资料</a> · 100问100答</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('gallery')">画廊</a></li>
-        <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></li>
+        <!-- <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></li> -->
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('rules')">※使用规定</a><span>←必读</span></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('games')">游戏角</a>&nbsp;制作中</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('music')">音乐</a></li>
@@ -1377,10 +1377,10 @@ watch(currentUser, () => {
                 <td><a href="#" @click.prevent="showPage('gallery')">画廊</a><span class="new-tag">new</span></td>
                 <td>展示着各位神明大人送来的超棒插画！一定要来看看哦</td>
               </tr>
-              <tr>
+              <!-- <tr>
                 <td><a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></td>
                 <td>意见、感想请到留言板♪ 在涂鸦留言板也在征集插画中！一直以来谢谢大家＞＜</td>
-              </tr>
+              </tr> -->
               <tr>
                 <td><a href="#" @click.prevent="showPage('rules')">使用规定</a></td>
                 <td>一定要先读哦☆</td>
