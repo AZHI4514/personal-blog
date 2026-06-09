@@ -1278,7 +1278,7 @@ watch(currentUser, () => {
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('home')">首页</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('profile')">个人资料</a> · 100问100答</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('gallery')">画廊</a></li>
-        <!-- <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></li> -->
+        <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('rules')">※使用规定</a><span>←必读</span></li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('games')">游戏角</a>&nbsp;制作中</li>
         <li><span class="menu-icon">◆</span> <a href="#" @click.prevent="showPage('music')">音乐</a></li>
@@ -1377,10 +1377,10 @@ watch(currentUser, () => {
                 <td><a href="#" @click.prevent="showPage('gallery')">画廊</a><span class="new-tag">new</span></td>
                 <td>展示着各位神明大人送来的超棒插画！一定要来看看哦</td>
               </tr>
-              <!-- <tr>
+              <tr>
                 <td><a href="#" @click.prevent="showPage('bbs')">BBS/留言板</a></td>
                 <td>意见、感想请到留言板♪ 在涂鸦留言板也在征集插画中！一直以来谢谢大家＞＜</td>
-              </tr> -->
+              </tr>
               <tr>
                 <td><a href="#" @click.prevent="showPage('rules')">使用规定</a></td>
                 <td>一定要先读哦☆</td>
@@ -1997,6 +1997,18 @@ watch(currentUser, () => {
         </div>
       </div>
 
+      <div class="footer-link footer-pad last">
+            <p>
+                <span>
+                    <img alt="" src="./assets/images/foot-icp.png" style="margin-right:5px;"><a href="https://beian.miit.gov.cn/#/Integrated/index" target="_blank">闽ICP备2026020308号</a>
+                </span>
+            </p>
+            <p>
+                <span>
+                    <img alt="" src="./assets/images/foot-ga.png" style="margin-right:5px;"><a href="https://beian.mps.gov.cn/#/query/webSearch?code=11010102000001" target="_blank">闽公网安备35082102000227号</a>
+                </span>
+            </p>
+        </div>
     </main>
   </div>
 </template>
@@ -2019,6 +2031,38 @@ a {
   text-decoration: none;
 }
 
+.footer-link {
+  text-align: center;
+  padding: 20px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.footer-link p {
+  margin: 8px 0;
+}
+
+.footer-link span {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.footer-link img {
+  vertical-align: middle;
+  width: 18px;      /* 按需调整图片宽度 */
+  height: auto;
+  margin-right: 5px;
+}
+
+.footer-link a {
+  color: #666;
+  text-decoration: none;
+}
+
+.footer-link a:hover {
+  text-decoration: underline;
+  color: #333;
+}
 /* ===== 2. 主布局结构 ===== */
 #app {
   width: 100%;
