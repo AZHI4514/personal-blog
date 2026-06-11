@@ -443,3 +443,79 @@ DASHSCOPE_API_KEY=your_dashscope_api_key
 - `/uploads/**`
 
 映射到本地上传目录 `file.upload.path`。部署时需要提前创建该目录，并保证后端进程有读写权限。
+
+## 前端重构更新
+
+以下内容仅说明这次前端重构后与之前不同的部分，原有业务能力、后端接口和部署方式不变。
+
+### 结构变化
+
+- `frontend/src/App.vue` 不再承载整站所有页面、逻辑和样式，当前只作为应用入口。
+- 新增 `frontend/src/layouts/DefaultLayout.vue`，统一承载顶部栏、侧边栏、页脚和页面出口。
+- 新增 `frontend/src/pages/`，将首页、个人资料、画廊、BBS、使用规定、音乐、游戏角、管理员、链接集拆成独立页面文件。
+- 新增 `frontend/src/composables/useBlogApp.js`，集中管理原来分散在 `App.vue` 中的前端状态与业务逻辑。
+- 新增 `frontend/src/styles/app.css`，集中承载原有全局样式。
+
+### 当前前端目录结构
+
+```text
+frontend/src/
+├─ api/
+├─ assets/
+│  └─ images/
+├─ composables/
+│  └─ useBlogApp.js
+├─ layouts/
+│  └─ DefaultLayout.vue
+├─ pages/
+│  ├─ AdminPage.vue
+│  ├─ BbsPage.vue
+│  ├─ GalleryPage.vue
+│  ├─ GamesPage.vue
+│  ├─ HomePage.vue
+│  ├─ LinksPage.vue
+│  ├─ MusicPage.vue
+│  ├─ NotFoundPage.vue
+│  ├─ ProfilePage.vue
+│  └─ RulesPage.vue
+├─ router/
+│  └─ index.js
+├─ stores/
+│  └─ counter.js
+├─ styles/
+│  └─ app.css
+├─ utils/
+│  └─ storage.js
+├─ App.vue
+└─ main.js
+```
+
+### 路由变化
+
+- 前端页面切换已从 `currentPage + v-if` 的单文件切换方式，调整为 Vue Router 的真实路由。
+- 当前已接入的页面路由包括：
+  - `/`
+  - `/profile`
+  - `/gallery`
+  - `/bbs`
+  - `/rules`
+  - `/games`
+  - `/music`
+  - `/admin`
+  - `/links`
+
+### 不变部分
+
+- 后端代码未改动。
+- 未新增任何后端 API，也未修改原有请求路径。
+- 原有中文页面信息未做业务性改写。
+- 现有登录、BBS、画廊、音乐、Live2D、AI 对话等功能仍按原接口工作。
+
+### 当前更适合阅读的前端学习顺序
+
+1. [frontend/src/router/index.js](/abs/path/D:/personal-blog/frontend/src/router/index.js:1)
+2. [frontend/src/layouts/DefaultLayout.vue](/abs/path/D:/personal-blog/frontend/src/layouts/DefaultLayout.vue:1)
+3. `frontend/src/pages/*.vue`
+4. [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1)
+5. `frontend/src/api/*.js`
+6. [frontend/src/styles/app.css](/abs/path/D:/personal-blog/frontend/src/styles/app.css:1)
