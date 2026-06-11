@@ -27,7 +27,7 @@ export const deletePost = (postId, deleteKey = null) => {
   })
 }
 
-// 更新帖子（需要验证删除密钥）
+// 更新帖子（需要验证删除钥匙）
 export const updatePost = (postId, data) => {
   return request({
     url: `/posts/${postId}`,

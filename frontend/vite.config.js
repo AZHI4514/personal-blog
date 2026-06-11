@@ -29,7 +29,8 @@ export default defineConfig(async ({ command }) => {
     build: {
       // Keep CSS output conservative for older mobile WebViews.
       cssTarget: ['chrome61', 'safari11'],
-      sourcemap: false,        // 关键：关闭 sourcemap 省内存
+      // Disable sourcemaps to keep production bundles smaller.
+      sourcemap: false,
       minify: 'terser',
       chunkSizeWarningLimit: 500
     },
