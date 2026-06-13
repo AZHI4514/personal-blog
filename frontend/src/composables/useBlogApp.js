@@ -1157,6 +1157,10 @@ function closeSidebar() {
   isSidebarOpen.value = false
 }
 
+function openSidebar() {
+  isSidebarOpen.value = true
+}
+
 function showPage(pageName) {
   if (!validPageNames.has(pageName)) {
     return
@@ -1304,6 +1308,7 @@ const blogAppState = {
   sendGameMessage,
   toggleSidebar,
   closeSidebar,
+  openSidebar,
   showPage,
   openAuthPage,
   toggleAuthMenu,

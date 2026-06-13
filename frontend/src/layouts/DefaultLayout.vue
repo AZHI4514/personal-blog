@@ -11,6 +11,7 @@ const {
   isAdmin,
   toggleSidebar,
   closeSidebar,
+  openSidebar,
   openAuthPage,
   toggleAuthMenu,
   logout,
@@ -23,7 +24,7 @@ useBlogAppLifecycle()
 <template>
   <div id="app">
     <div class="mobile-top-bar">
-      <button class="mobile-menu-btn" type="button" @click="toggleSidebar" aria-label="展开菜单">☰</button>
+      <button class="mobile-menu-btn" type="button" @click="toggleSidebar" @mouseenter="openSidebar" aria-label="展开菜单">☰</button>
       <div class="mobile-top-title">☽星尘观测站☾</div>
       <div class="mobile-top-links">
         <a href="#" @click.prevent="openAuthPage('login')">登录</a>
