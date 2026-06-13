@@ -963,6 +963,13 @@ const loadLive2dSdk = async () => {
     LAppLive2DManager.prototype.onTap = function onTap() {
       const model = this._models[0]
       if (model) {
+        // 调试：检查动作组是否被正确加载
+        const motionCount = model._modelSetting.getMotionCount('Tap')
+        console.log('[Live2D Tap] Motion count for Tap group:', motionCount)
+        // 播放"招右手"动作
+        const handle = model.startMotion('Tap', 0, 3)
+        console.log('[Live2D Tap] startMotion result:', handle)
+        // 同时随机播放一个表情
         model.setRandomExpression()
       }
     }

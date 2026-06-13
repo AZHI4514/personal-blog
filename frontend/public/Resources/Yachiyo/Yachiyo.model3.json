@@ -8,6 +8,13 @@
     ],
     "Physics": "physics.physics3.json",
     "DisplayInfo": "display.cdi3.json",
+    "Motions": {
+      "Tap": [
+        {
+          "File": "motions/wave_right.motion3.json"
+        }
+      ]
+    },
     "Expressions": [
       {
         "Name": "tear",

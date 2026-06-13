@@ -1,0 +1,46 @@
+{
+    "Version": 3,
+    "Meta": {
+        "Duration": 0.6,
+        "Fps": 30.0,
+        "Loop": false,
+        "AreBeziersRestricted": true,
+        "CurveCount": 3,
+        "TotalSegmentCount": 9,
+        "TotalPointCount": 12
+    },
+    "Curves": [
+        {
+            "Target": "Parameter",
+            "Id": "ParamArmPhysics_R1",
+            "Segments": [
+                0.0, 0.0,
+                0, 0.2, 1.0,
+                0, 0.4, 1.0,
+                0, 0.6, 0.0
+            ]
+        },
+        {
+            "Target": "Parameter",
+            "Id": "ParamArmPhysics_R2",
+            "Segments": [
+                0.0, 0.0,
+                0, 0.2, 0.8,
+                0, 0.4, 0.8,
+                0, 0.6, 0.0
+            ]
+        },
+        {
+            "Target": "Parameter",
+            "Id": "ParamArmPhysics_R3",
+            "Segments": [
+                0.0, 0.0,
+                0, 0.2, 0.6,
+                0, 0.4, 0.6,
+                0, 0.6, 0.0
+            ]
+        }
+    ],
+    "UserDataCount": 0,
+    "TotalUserDataSize": 0
+}
