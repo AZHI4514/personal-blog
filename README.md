@@ -163,9 +163,13 @@ personal-blog/
 - `localStorage` 读写经过安全封装，避免某些 WebView 因存储异常在首屏直接崩溃
 - 应用挂载失败时会在页面上直接输出错误信息，便于远程排查移动端兼容问题
 
-### Live2D 运行时资源
+### Live2D 自定义与问题排查
 
-前端运行时依赖这些资源：
+#### 代码与资源位置
+
+前端 Live2D 逻辑集中在 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1)，运行时模型入口为 [frontend/public/Resources/Yachiyo/Yachiyo.model3.json](/abs/path/D:/personal-blog/frontend/public/Resources/Yachiyo/Yachiyo.model3.json:1)。
+
+运行时依赖资源：
 
 - `frontend/public/Core/live2dcubismcore.js`
 - `frontend/public/Framework/Shaders/WebGL/*`
@@ -178,46 +182,73 @@ personal-blog/
 - `Live2d/CubismSdkForWeb-5-r.5/Framework/src`
 - `Live2d/CubismSdkForWeb-5-r.5/Samples/TypeScript/Demo/src`
 
-对应别名配置位于 [frontend/vite.config.js](/abs/path/D:/personal-blog/frontend/vite.config.js:1)。
+Vite 别名配置位于 [frontend/vite.config.js](/abs/path/D:/personal-blog/frontend/vite.config.js:1)。
 
-### Live2D 自定义与问题排查
+#### 已知问题
 
-当前站点的 Live2D 前端逻辑主要集中在 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1) 中，运行时模型入口为 [frontend/public/Resources/Yachiyo/Yachiyo.model3.json](/abs/path/D:/personal-blog/frontend/public/Resources/Yachiyo/Yachiyo.model3.json:1)。
+##### 问题一：移动端黑轮廓 / 贴图缺失
 
-这次移动端渲染问题的现象是：
+**现象**：模型动作和点击反馈正常，但部分手机浏览器只显示黑色轮廓，材质贴图没有正常显示。
 
-- 模型动作和点击反馈正常
-- 但部分手机浏览器只显示黑色轮廓，材质贴图没有正常显示
+**原因**：不是动作系统问题，而是贴图资源或移动端 WebGL 兼容性问题。常见原因包括运行时资源中文路径导致部分移动端加载失败，以及贴图尺寸超过旧手机或 WebView 的最大纹理尺寸限制。
 
-这类问题通常不是动作系统坏了，而是贴图资源或移动端 WebGL 兼容性问题。当前项目已经针对这类情况做了两项处理：
+**已做处理**：
 
 - 运行时资源路径改为优先使用 ASCII 名称，避免部分移动端对中文路径兼容不稳定
-- Live2D 运行时贴图尺寸从原始超大纹理降到更适合移动端的级别，降低旧手机或 WebView 因最大纹理尺寸不足而导致贴图发黑的概率
+- Live2D 运行时贴图尺寸从原始超大纹理降到更适合移动端的级别，降低因最大纹理尺寸不足而导致贴图发黑的概率
 
-如果后续再次出现 Live2D 黑轮廓、贴图缺失、但动作仍正常的情况，优先检查：
+**排查清单**：如果再次出现黑轮廓、贴图缺失但动作仍正常的情况，按顺序检查：
 
-- `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` 中引用的贴图路径是否真实存在
-- `frontend/public/Resources/Yachiyo/textures/` 下的 `texture_00.png` 和 `texture_01.png` 是否已经部署到线上
-- 线上是否重新执行了前端构建，并把整个 `frontend/dist/.` 完整复制到站点目录
+1. `frontend/public/Resources/Yachiyo/Yachiyo.model3.json` 中引用的贴图路径是否真实存在
+2. `frontend/public/Resources/Yachiyo/textures/` 下的 `texture_00.png` 和 `texture_01.png` 是否已经部署到线上
+3. 线上是否重新执行了前端构建，并把整个 `frontend/dist/.` 完整复制到站点目录
 
-如果要自定义模型动作、表情或资源，可按下面的方向修改：
+##### 问题二：路由切换后模型消失
 
-- 修改模型入口：
-  `frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
-- 替换表情文件：
-  `frontend/public/Resources/Yachiyo/*.exp3.json`
-- 替换物理参数：
-  `frontend/public/Resources/Yachiyo/*.physics3.json`
-- 替换贴图资源：
-  `frontend/public/Resources/Yachiyo/textures/*.png`
+**现象**：
 
-当前点击角色触发表情、进入页面加载模型、以及拖动跟随指针等逻辑，主要在 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1093) 附近的 Live2D 初始化代码中。如果要继续自定义：
+- 第一次进入 `/games`，Live2D 模型正常加载并渲染
+- 通过导航切换到其他页面（如首页、BBS 等）后，再切回 `/games`
+- Live2D 画布不再显示模型，可能出现 `startupErrors` 报错
 
-- 表情触发逻辑可调整 `LAppLive2DManager.prototype.onTap`
-- 模型目录可调整 `live2dDefine.ModelDir`
-- 加载中的提示文案与行为可调整 `mountLive2d` 和 `live2dLoading`
+**根因分析**：
 
-每次修改 Live2D 资源或前端逻辑后，都必须重新执行：
+问题出在 Vue Router 的组件生命周期与 Live2D WebGL 实例之间的数据不一致，分为三步：
+
+1. **离开时未释放**：Vue Router 切换路由时卸载 `GamesPage.vue`，`<canvas>` 从 DOM 移除，浏览器自动销毁其 WebGL 上下文。但旧代码在 `currentPage` watcher 中只调用了 `stopLive2dRenderLoop()` 和 `detachLive2dPointerEvents()`，这两个函数仅暂停动画循环和指针事件，并未调用 `release()` 清理 `live2dSubdelegate` 持有的 WebGL 资源。
+
+2. **进入时错误复用**：当再次进入 `/games` 时，`mountLive2d()` 检测到 `live2dSubdelegate !== null`，进入复用分支直接重启渲染循环。但 subdelegate 内部绑定的仍是上一个已销毁 canvas 的失效 WebGL 上下文。渲染循环调用 `subdelegate.update()` 时，内部 `onResize()` 尝试访问已失效的视图对象，抛出 `Cannot read properties of null` 错误，Live2D 无法渲染。
+
+3. **销毁路径同样危险**：如果在复用分支中尝试调用 `destroyLive2dInstance()` → `release()`，同样会失败。因为 `LAppSubdelegate.release()` 内部调用 WebGL 对象的 `unobserve()` 方法时，WebGL 上下文已被浏览器自动清理、相关对象已变为 null，导致 `Cannot read properties of null (reading 'unobserve')` 的二次释放错误。
+
+**解决思路**：采用"每次进入游戏角时完整重建"策略，三处改动均位于 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1)：
+
+1. **离开时彻底销毁**：`currentPage` watcher 中，将 `stopLive2dRenderLoop()` + `detachLive2dPointerEvents()` 替换为 `destroyLive2dInstance()`。由于 `currentPage.value` 在 `router.push()` 之前同步修改，此时组件尚未卸载、canvas 仍在 DOM 中、WebGL 上下文有效，`release()` 可以安全执行。
+
+2. **进入时完整重建**：`mountLive2d()` 中，将子代理复用分支替换为先 `destroyLive2dInstance()` 再走完整初始化流程，确保每次进入 `/games` 都创建全新 Live2D 实例。
+
+3. **release() 容错保护**：`destroyLive2dInstance()` 中对 `release()` 增加 try-catch，防止边缘情况（浏览器直接刷新、WebGL 上下文异常丢失等）导致未捕获异常。
+
+这一策略牺牲了每次进入时的 SDK 和纹理重新初始化开销，但换来了稳定性和可维护性，是当前项目规模和 Live2D SDK 版本下最可靠的方案。
+
+#### 自定义指南
+
+**资源级修改**（替换模型入口、表情、物理参数或贴图）：
+
+- 模型入口：`frontend/public/Resources/Yachiyo/Yachiyo.model3.json`
+- 表情文件：`frontend/public/Resources/Yachiyo/*.exp3.json`
+- 物理参数：`frontend/public/Resources/Yachiyo/*.physics3.json`
+- 贴图资源：`frontend/public/Resources/Yachiyo/textures/*.png`
+
+**代码级修改**（自定义动作、表情触发或加载行为），参考 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1093) 附近的初始化代码：
+
+- 表情触发逻辑：调整 `LAppLive2DManager.prototype.onTap`
+- 模型目录：调整 `live2dDefine.ModelDir`
+- 加载提示文案与行为：调整 `mountLive2d` 和 `live2dLoading`
+
+#### 修改后的部署步骤
+
+每次修改 Live2D 资源或前端逻辑后，必须重新执行：
 
 ```bash
 cd /opt/personal-blog/frontend
