@@ -1048,7 +1048,11 @@ const destroyLive2dInstance = () => {
   detachLive2dPointerEvents()
 
   if (live2dSubdelegate) {
-    live2dSubdelegate.release()
+    try {
+      live2dSubdelegate.release()
+    } catch (e) {
+      // WebGL 上下文可能已被浏览器清理，忽略即可
+    }
     live2dSubdelegate = null
   }
 }
@@ -1104,12 +1108,7 @@ const mountLive2d = async () => {
   }
 
   if (live2dSubdelegate) {
-    if (!live2dPointerHandlers) {
-      attachLive2dPointerEvents(live2dSubdelegate, live2dCanvas.value)
-    }
-    live2dLoading.value = false
-    startLive2dRenderLoop(live2dSubdelegate)
-    return
+    destroyLive2dInstance()
   }
 
   live2dLoading.value = true
@@ -1361,8 +1360,7 @@ export function useBlogAppLifecycle() {
       return
     }
   
-    stopLive2dRenderLoop()
-    detachLive2dPointerEvents()
+    destroyLive2dInstance()
   })
 
   watch(live2dCanvas, async (canvas) => {
