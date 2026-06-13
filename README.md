@@ -12,14 +12,17 @@
 - Pinia
 - Axios
 - Live2D Cubism SDK for Web 5
-- `@vitejs/plugin-legacy`（用于旧版移动浏览器兼容）
+- `@vitejs/plugin-vue`
+- `@vitejs/plugin-legacy`
 
 ### 后端
 
 - Java 17
-- Spring Boot 3.5.x
+- Spring Boot 3.5.13
+- Spring Web MVC
 - MyBatis
 - MySQL 8
+- Lombok
 - Spring Security Crypto
 - LangChain4j
 - Reactor
@@ -28,25 +31,47 @@
 
 ```text
 personal-blog/
-├─ frontend/                  # 前端工程
-│  ├─ public/                 # 直接对外提供的静态资源
-│  ├─ src/                    # Vue 源码
+├─ frontend/                        # Vue 3 + Vite 前端工程
+│  ├─ public/                       # 直接对外提供的静态资源与 Live2D 运行时资源
+│  ├─ src/
+│  │  ├─ api/                       # 前端接口封装
+│  │  ├─ assets/                    # 构建期静态资源
+│  │  ├─ composables/               # 组合式业务逻辑
+│  │  ├─ layouts/                   # 页面整体布局
+│  │  ├─ pages/                     # 路由页面
+│  │  ├─ router/                    # Vue Router 路由配置
+│  │  ├─ styles/                    # 全局样式
+│  │  ├─ utils/                     # 工具函数
+│  │  ├─ App.vue                    # 应用入口组件
+│  │  └─ main.js                    # 前端启动入口
+│  ├─ index.html
 │  ├─ package.json
 │  └─ vite.config.js
-├─ backend/                   # Spring Boot 后端
+├─ backend/                         # Spring Boot 后端工程
 │  ├─ src/main/java/com/azhi/
-│  ├─ src/main/resources/
+│  │  ├─ config/                    # Web、MCP 等配置
+│  │  ├─ controller/                # 控制器
+│  │  ├─ mapper/                    # MyBatis Mapper
+│  │  ├─ pojo/                      # 实体与统一返回结构
+│  │  ├─ service/                   # 业务接口与实现
+│  │  └─ PersonalBlogApplication.java
+│  ├─ src/main/resources/           # 配置文件与提示词资源
+│  ├─ uploads/                      # 本地上传目录
 │  └─ pom.xml
-├─ Live2d/                    # 原始 Live2D SDK 与模型素材
-├─ deploy/                    # 部署示例配置
+├─ Live2d/                          # Live2D 原始 SDK 与模型素材
+├─ deploy/                          # 部署相关配置
+├─ database.md                      # 数据库说明
+├─ blog_db_backup.sql               # 数据库备份示例
 └─ README.md
 ```
 
 说明：
 
-- `frontend/` 和 `backend/` 是当前实际运行代码。
-- `frontend/public/` 保存前端运行时实际访问的 Live2D 资源副本。
-- `Live2d/` 保存原始 SDK 与模型素材，构建时通过 Vite alias 引用其中的 TypeScript 源码。
+- `frontend/` 和 `backend/` 是当前实际运行的主项目代码。
+- `frontend/src/pages/` 负责页面拆分，`frontend/src/layouts/DefaultLayout.vue` 负责整体骨架，`frontend/src/composables/useBlogApp.js` 集中管理主要前端状态与业务逻辑。
+- `frontend/public/` 保存构建后仍需按原路径直接访问的资源，例如 Live2D 运行时文件、图片与音乐资源。
+- `backend/uploads/` 用于保存后端上传的图片和音乐文件。
+- `Live2d/` 保存原始 SDK 与模型素材，Vite 构建阶段会引用其中的源码。
 
 ## 主要功能
 
@@ -60,6 +85,39 @@ personal-blog/
 - `/ai/chat` SSE 流式对话
 
 ## 前端说明
+
+### 当前结构与页面组织
+
+当前前端采用 Vue Router 拆分页面，而不是把整站内容集中在单个组件里。核心组织方式如下：
+
+- [frontend/src/main.js](/abs/path/D:/personal-blog/frontend/src/main.js:1) 负责创建应用、注册 Pinia 和路由，并在启动失败时输出错误信息
+- [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:1) 只作为应用入口，直接挂载默认布局
+- [frontend/src/layouts/DefaultLayout.vue](/abs/path/D:/personal-blog/frontend/src/layouts/DefaultLayout.vue:1) 负责顶部栏、侧边栏、页脚和 `RouterView`
+- [frontend/src/pages/](/abs/path/D:/personal-blog/frontend/src/pages) 下的页面组件分别承载首页、资料页、画廊、BBS、规则页、游戏角、音乐页、管理员页、链接页和 404 页
+- [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1) 集中管理登录状态、帖子、画廊、音乐、Live2D、AI 对话、启动期错误等前端状态与业务逻辑
+- [frontend/src/styles/app.css](/abs/path/D:/personal-blog/frontend/src/styles/app.css:1) 负责全站样式
+
+当前路由位于 [frontend/src/router/index.js](/abs/path/D:/personal-blog/frontend/src/router/index.js:1)，已接入的页面包括：
+
+- `/`
+- `/profile`
+- `/gallery`
+- `/bbs`
+- `/rules`
+- `/games`
+- `/music`
+- `/admin`
+- `/links`
+- `/:pathMatch(.*)*`
+
+如果要阅读当前前端代码，比较合适的顺序是：
+
+1. [frontend/src/router/index.js](/abs/path/D:/personal-blog/frontend/src/router/index.js:1)
+2. [frontend/src/layouts/DefaultLayout.vue](/abs/path/D:/personal-blog/frontend/src/layouts/DefaultLayout.vue:1)
+3. `frontend/src/pages/*.vue`
+4. [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1)
+5. `frontend/src/api/*.js`
+6. [frontend/src/styles/app.css](/abs/path/D:/personal-blog/frontend/src/styles/app.css:1)
 
 ### 浏览器兼容
 
@@ -124,7 +182,7 @@ personal-blog/
 
 ### Live2D 自定义与问题排查
 
-当前站点的 Live2D 逻辑主要集中在 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:1) 中，运行时模型入口为 [frontend/public/Resources/Yachiyo/Yachiyo.model3.json](/abs/path/D:/personal-blog/frontend/public/Resources/Yachiyo/Yachiyo.model3.json:1)。
+当前站点的 Live2D 前端逻辑主要集中在 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1) 中，运行时模型入口为 [frontend/public/Resources/Yachiyo/Yachiyo.model3.json](/abs/path/D:/personal-blog/frontend/public/Resources/Yachiyo/Yachiyo.model3.json:1)。
 
 这次移动端渲染问题的现象是：
 
@@ -153,7 +211,7 @@ personal-blog/
 - 替换贴图资源：
   `frontend/public/Resources/Yachiyo/textures/*.png`
 
-当前点击角色触发表情、进入页面加载模型、以及拖动跟随指针等逻辑，主要在 [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:868) 之后的 Live2D 初始化代码中。如果要继续自定义：
+当前点击角色触发表情、进入页面加载模型、以及拖动跟随指针等逻辑，主要在 [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1093) 附近的 Live2D 初始化代码中。如果要继续自定义：
 
 - 表情触发逻辑可调整 `LAppLive2DManager.prototype.onTap`
 - 模型目录可调整 `live2dDefine.ModelDir`
@@ -422,79 +480,3 @@ DASHSCOPE_API_KEY=your_dashscope_api_key
 - `/uploads/**`
 
 映射到本地上传目录 `file.upload.path`。部署时需要提前创建该目录，并保证后端进程有读写权限。
-
-## 前端重构更新
-
-以下内容仅说明这次前端重构后与之前不同的部分，原有业务能力、后端接口和部署方式不变。
-
-### 结构变化
-
-- `frontend/src/App.vue` 不再承载整站所有页面、逻辑和样式，当前只作为应用入口。
-- 新增 `frontend/src/layouts/DefaultLayout.vue`，统一承载顶部栏、侧边栏、页脚和页面出口。
-- 新增 `frontend/src/pages/`，将首页、个人资料、画廊、BBS、使用规定、音乐、游戏角、管理员、链接集拆成独立页面文件。
-- 新增 `frontend/src/composables/useBlogApp.js`，集中管理原来分散在 `App.vue` 中的前端状态与业务逻辑。
-- 新增 `frontend/src/styles/app.css`，集中承载原有全局样式。
-
-### 当前前端目录结构
-
-```text
-frontend/src/
-├─ api/
-├─ assets/
-│  └─ images/
-├─ composables/
-│  └─ useBlogApp.js
-├─ layouts/
-│  └─ DefaultLayout.vue
-├─ pages/
-│  ├─ AdminPage.vue
-│  ├─ BbsPage.vue
-│  ├─ GalleryPage.vue
-│  ├─ GamesPage.vue
-│  ├─ HomePage.vue
-│  ├─ LinksPage.vue
-│  ├─ MusicPage.vue
-│  ├─ NotFoundPage.vue
-│  ├─ ProfilePage.vue
-│  └─ RulesPage.vue
-├─ router/
-│  └─ index.js
-├─ stores/
-│  └─ counter.js
-├─ styles/
-│  └─ app.css
-├─ utils/
-│  └─ storage.js
-├─ App.vue
-└─ main.js
-```
-
-### 路由变化
-
-- 前端页面切换已从 `currentPage + v-if` 的单文件切换方式，调整为 Vue Router 的真实路由。
-- 当前已接入的页面路由包括：
-  - `/`
-  - `/profile`
-  - `/gallery`
-  - `/bbs`
-  - `/rules`
-  - `/games`
-  - `/music`
-  - `/admin`
-  - `/links`
-
-### 不变部分
-
-- 后端代码未改动。
-- 未新增任何后端 API，也未修改原有请求路径。
-- 原有中文页面信息未做业务性改写。
-- 现有登录、BBS、画廊、音乐、Live2D、AI 对话等功能仍按原接口工作。
-
-### 当前更适合阅读的前端学习顺序
-
-1. [frontend/src/router/index.js](/abs/path/D:/personal-blog/frontend/src/router/index.js:1)
-2. [frontend/src/layouts/DefaultLayout.vue](/abs/path/D:/personal-blog/frontend/src/layouts/DefaultLayout.vue:1)
-3. `frontend/src/pages/*.vue`
-4. [frontend/src/composables/useBlogApp.js](/abs/path/D:/personal-blog/frontend/src/composables/useBlogApp.js:1)
-5. `frontend/src/api/*.js`
-6. [frontend/src/styles/app.css](/abs/path/D:/personal-blog/frontend/src/styles/app.css:1)
