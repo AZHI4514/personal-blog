@@ -18,6 +18,7 @@ const {
 </script>
 
 <template>
+  <!-- 音乐页结构 -->
   <div>
           <h1 class="music-title"><span class="music-icon">◆&nbsp;&nbsp;</span>音乐放置处<span class="music-icon"></span>&nbsp;&nbsp;◆</h1>
           <p>收录站长喜欢的曲目，点击列表即可播放。</p>
@@ -76,6 +77,4 @@ const {
           </div>
           <p>点击曲目即可开始播放♪</p>
         </div>
-  
-        <!-- 链接集结构 -->
 </template>

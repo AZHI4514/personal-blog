@@ -1,4 +1,5 @@
 <template>
+  <!-- 个人资料页结构 -->
   <div class="profile-container">
           <h1 class="profile-title"><span class="profile-icon-left">◆&nbsp;&nbsp;</span>个人资料<span class="profile-icon-right"></span>&nbsp;&nbsp;◆</h1>
           <p class="subtitle">—— AZHI的100问100答 ——</p>
@@ -105,6 +106,4 @@
             <p><strong>Q100. 对读到这里的人说一句话！</strong><br>谢谢你读到最后～＞＜☆ 如果能让你多了解AZHI一点点的话就太开心了♪ 以后也请多多关照！</p>
           </div>
         </div>
-  
-        <!-- 画廊页结构 -->
 </template>

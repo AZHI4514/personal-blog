@@ -1,4 +1,5 @@
 <template>
+  <!-- 使用规定 -->
   <div class="rules-container">
           <h1 class="rules-title"><span class="rules-icon">☆&nbsp;&nbsp;</span>星尘观测站&nbsp;使用规约<span class="rules-icon"></span>&nbsp;&nbsp;☆</h1>
           <p>最终更新 / 最后更新：2026.03.16</p>
@@ -51,6 +52,4 @@
   
           <p>感谢神明大人读完以上规约，祝神明大人们聊天愉快！</p>
         </div>
-  
-        <!-- 音乐页结构 -->
 </template>

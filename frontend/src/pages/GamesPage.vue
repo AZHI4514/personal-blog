@@ -17,6 +17,7 @@ const {
 </script>
 
 <template>
+  <!-- 游戏角结构 -->
   <div class="game-container">
           <div class="game-toolbar">
             <div class="game-toolbar-left">

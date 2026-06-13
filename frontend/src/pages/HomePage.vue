@@ -9,6 +9,7 @@ const {
 </script>
 
 <template>
+  <!-- 首页结构 -->
   <div>
           <div class="header-section">
             <div class="header-top">
@@ -118,6 +119,4 @@ const {
               </tbody>
             </table>   
         </div>
-        
-        <!-- 个人资料页结构 -->
 </template>

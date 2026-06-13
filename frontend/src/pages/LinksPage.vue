@@ -1,4 +1,5 @@
 <template>
+  <!-- 链接集结构 -->
   <div class="links-container">
           <h1 class="links-title"><span class="links-icon">☆&nbsp;&nbsp;</span>Links<span class="links-icon"></span>&nbsp;&nbsp;☆</h1>
           <p class="links-intro">这些都是站长非常珍惜的宝藏链接。<br>要不要一起出发，去探索充满回忆与灵感的地方呢？☆</p>

@@ -24,6 +24,7 @@ const {
 </script>
 
 <template>
+  <!-- 论坛结构 -->
   <div class="bbs-container">
           <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>☽AZHI☾的小屋<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
   
@@ -163,6 +164,4 @@ const {
             </div>
           </template>
         </div>
-  
-        <!-- 使用规定 -->
 </template>

@@ -22,6 +22,7 @@ const {
 </script>
 
 <template>
+  <!-- 管理员结构 -->
   <div v-if="isAdmin" class="bbs-container">
           <h1 class="bbs-title"><span class="bbs-icon">◆&nbsp;&nbsp;</span>管理员<span class="bbs-icon"></span>&nbsp;&nbsp;◆</h1>
           <p class="admin-intro">仅管理员可见。这里可以维护音乐和画廊内容，表单格式分别对应 `Music.java` 与 `Image.java`。</p>
@@ -146,6 +147,4 @@ const {
             </div>
           </div>
         </div>
-  
-        <!-- 游戏角结构 -->
 </template>
