@@ -9,7 +9,6 @@
 - Vue 3
 - Vite 7
 - Vue Router
-- Pinia
 - Axios
 - Live2D Cubism SDK for Web 5
 - `@vitejs/plugin-vue`
@@ -90,7 +89,7 @@ personal-blog/
 
 当前前端采用 Vue Router 拆分页面，而不是把整站内容集中在单个组件里。核心组织方式如下：
 
-- [frontend/src/main.js](/abs/path/D:/personal-blog/frontend/src/main.js:1) 负责创建应用、注册 Pinia 和路由，并在启动失败时输出错误信息
+- [frontend/src/main.js](/abs/path/D:/personal-blog/frontend/src/main.js:1) 负责创建应用、注册路由，并在启动失败时输出错误信息
 - [frontend/src/App.vue](/abs/path/D:/personal-blog/frontend/src/App.vue:1) 只作为应用入口，直接挂载默认布局
 - [frontend/src/layouts/DefaultLayout.vue](/abs/path/D:/personal-blog/frontend/src/layouts/DefaultLayout.vue:1) 负责顶部栏、侧边栏、页脚和 `RouterView`
 - [frontend/src/pages/](/abs/path/D:/personal-blog/frontend/src/pages) 下的页面组件分别承载首页、资料页、画廊、BBS、规则页、游戏角、音乐页、管理员页、链接页和 404 页
