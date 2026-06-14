@@ -34,22 +34,26 @@ public class LifeServiceImpl implements LifeService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // ==================== 系统提示词 ====================
+    // ==================== 系统提示词（极简，所有设定由玩家提供） ====================
 
     private static final String SYSTEM_PROMPT = """
-        你是一个"人生模拟器"的剧情引擎，负责为玩家生成精彩的人生故事。
+        你是一个"人生模拟器"的剧情引擎。你必须严格以玩家的【自定义设定】作为世界观和规则的唯一依据。
+        如果玩家没有提供设定，则自由发挥创意。
 
-        角色拥有5个属性（0-100）：money(金钱), health(健康), happiness(快乐), morality(道德), knowledge(知识)。
-        每回合玩家做出选择后，属性会相应增减，然后进入下一岁。
+        角色属性（0-100）：money(金钱), health(健康), happiness(快乐), morality(道德), knowledge(知识)。
+        当任一属性降至0或以下时，角色死亡。
 
-        你的任务：根据角色当前状态，生成一段引人入胜的剧情（150-300字），并提供2-4个有意义的选择。
-        剧情风格参考《模拟人生》+《中国式家长》，可以温馨、搞笑、戏剧化、偶尔荒诞。
-        必须使用第二人称"你"来叙述。15%%概率触发随机事件（彩票中奖、街头遇险、神秘来信等）。
+        【重要规则】health(健康) 仅在剧情中明确涉及身体受伤、疾病、战斗、意外事故等直接伤害身体的
+        事件时才可以扣除。日常剧情、社交活动、工作学习等不涉及身体伤害的场景，health 只能保持或增加，
+        不得减少。
 
-        只返回以下JSON，不要任何解释、问候或markdown标记：
-        {"description":"剧情文本","options":[{"text":"选项1","effects":{"money":0,"health":0,"happiness":0,"morality":0,"knowledge":0}}]}
+        每回合你收到：玩家设定 + 当前状态 + 故事历史 + 玩家选择。
+        你需要做两件事：
+        1. 判断该选择带来的属性变化（statChanges，每个属性 -20 到 +20）
+        2. 生成接下来的一小段剧情（约100字）和2-4个新选项
 
-        effects数值在-15到+15之间，总和正负平衡。当任一属性≤0时角色死亡。
+        只返回JSON，不要任何解释或markdown标记：
+        {"statChanges":{"money":0,"health":0,"happiness":0,"morality":0,"knowledge":0},"description":"剧情（约100字）","options":[{"text":"选项1"},{"text":"选项2"}]}
         """;
 
     // ==================== 公开方法 ====================
@@ -57,41 +61,45 @@ public class LifeServiceImpl implements LifeService {
     @Override
     @Transactional
     public Map<String, Object> startGame(String deviceId, String name) {
-        // 获取用户 LLM 配置
         LlmConfig config = llmConfigService.getConfig(deviceId);
         if (config == null) {
             throw new IllegalStateException("请先配置大模型再开始游戏");
         }
-
-        // 查找或创建用户
         LifeUser user = ensureUser(deviceId);
+        return doStartGame(user.getId(), name, config);
+    }
 
-        // 创建角色
-        LifeCharacter character = new LifeCharacter();
-        character.setUserId(user.getId());
-        character.setName(name != null && !name.isBlank() ? name : "无名氏");
-        character.setAge(0);
-        character.setMoney(100);
-        character.setHealth(80);
-        character.setHappiness(60);
-        character.setMorality(50);
-        character.setKnowledge(30);
-        character.setIsAlive(true);
-        character.setGeneration(1);
+    /** 创建全新角色并生成开局剧情 */
+    private Map<String, Object> doStartGame(Long userId, String name, LlmConfig config) {
+        LifeCharacter character = createFreshCharacter(userId, name);
         lifeMapper.insertCharacter(character);
 
-        // 生成首段剧情
         String userPrompt = buildStartPrompt(character);
         String aiResponse = callAI(config, userPrompt);
-        Map<String, Object> story = parseAIResponse(aiResponse, character);
+        Map<String, Object> story = parseAIResponse(aiResponse);
 
-        // 记录事件
         saveEvent(character.getId(), character.getAge(), story, "游戏开始");
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("character", character);
         result.put("story", story);
         return result;
+    }
+
+    /** 创建一个属性全默认的空白角色 */
+    private LifeCharacter createFreshCharacter(Long userId, String name) {
+        LifeCharacter c = new LifeCharacter();
+        c.setUserId(userId);
+        c.setName(name != null && !name.isBlank() ? name : "无名氏");
+        c.setAge(0);
+        c.setMoney(100);
+        c.setHealth(80);
+        c.setHappiness(60);
+        c.setMorality(50);
+        c.setKnowledge(30);
+        c.setIsAlive(true);
+        c.setGeneration(1);
+        return c;
     }
 
     @Override
@@ -120,16 +128,27 @@ public class LifeServiceImpl implements LifeService {
             throw new IllegalArgumentException("无效的选择");
         }
 
-        Map<String, Object> chosen = options.get(choiceIndex);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> effects = (Map<String, Object>) chosen.get("effects");
+        String choiceText = (String) options.get(choiceIndex).get("text");
 
-        // 应用效果到角色属性
-        if (effects != null) {
-            applyEffects(character, effects);
+        // 获取故事历史（最近事件摘要）
+        String storyHistory = buildStoryHistory(characterId);
+
+        // 获取 LLM 配置
+        LlmConfig llmConfig = llmConfigService.getDecryptedConfigByUserId(character.getUserId());
+
+        // 让 AI 决定：属性变化 + 接下来的剧情 + 新选项
+        String userPrompt = buildActionPrompt(character, choiceText, storyHistory);
+        String aiResponse = callAI(llmConfig, userPrompt);
+        Map<String, Object> story = parseAIResponse(aiResponse);
+
+        // 应用 AI 决定的属性变化
+        @SuppressWarnings("unchecked")
+        Map<String, Object> statChanges = (Map<String, Object>) story.get("statChanges");
+        if (statChanges != null) {
+            applyEffects(character, statChanges);
         }
 
-        // 年龄 +1
+        // 游戏天数 +1
         character.setAge(character.getAge() + 1);
         lifeMapper.updateCharacter(character);
 
@@ -137,36 +156,31 @@ public class LifeServiceImpl implements LifeService {
         if (!Boolean.TRUE.equals(character.getIsAlive())) {
             saveEvent(character.getId(), character.getAge(),
                 Map.of("description", "你的人生走到了尽头...", "options", List.of()),
-                (String) chosen.get("text"));
+                choiceText);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("character", character);
             result.put("story", Map.of(
-                "description", "你的人生走到了尽头。享年 " + character.getAge() + " 岁。点击「重新开局」开始新的旅程。",
+                "description", "你的人生走到了尽头。第 " + character.getAge() + " 天。点击「重新开局」开始新的旅程。",
                 "options", List.of(),
                 "isGameOver", true
             ));
-            result.put("lastChoice", chosen.get("text"));
-            result.put("lastEffects", effects);
+            result.put("lastChoice", choiceText);
+            result.put("lastEffects", statChanges);
             return result;
         }
 
-        // 获取用户 LLM 配置（通过 LlmConfigService 解密 apiKey）
-        LlmConfig llmConfig = llmConfigService.getDecryptedConfigByUserId(character.getUserId());
-
-        // 生成下一段剧情
-        String userPrompt = buildActionPrompt(character, (String) chosen.get("text"), effects);
-        String aiResponse = callAI(llmConfig, userPrompt);
-        Map<String, Object> story = parseAIResponse(aiResponse, character);
+        // 清理 story 中的 statChanges（不存入事件）
+        story.remove("statChanges");
 
         // 记录事件
-        saveEvent(character.getId(), character.getAge(), story, (String) chosen.get("text"));
+        saveEvent(character.getId(), character.getAge(), story, choiceText);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("character", character);
         result.put("story", story);
-        result.put("lastChoice", chosen.get("text"));
-        result.put("lastEffects", effects);
+        result.put("lastChoice", choiceText);
+        result.put("lastEffects", statChanges);
         return result;
     }
 
@@ -183,49 +197,6 @@ public class LifeServiceImpl implements LifeService {
     public List<LifeEvent> getEvents(Long characterId, int page, int size) {
         int offset = Math.max(0, page - 1) * size;
         return lifeMapper.selectEventsByCharacterId(characterId, offset, size);
-    }
-
-    @Override
-    @Transactional
-    public Map<String, Object> resetGame(Long characterId) {
-        LifeCharacter old = lifeMapper.selectCharacterById(characterId);
-        if (old == null) {
-            throw new IllegalArgumentException("角色不存在");
-        }
-
-        // 杀死旧角色
-        lifeMapper.killCharacter(characterId);
-
-        // 创建新角色，继承部分成就
-        LifeCharacter character = new LifeCharacter();
-        character.setUserId(old.getUserId());
-        character.setName(old.getName());
-        character.setAge(0);
-        // 继承：金钱保留20%，知识保留30%，其他重置
-        character.setMoney(Math.min(100, (int)(old.getMoney() * 0.2) + 50));
-        character.setHealth(80);
-        character.setHappiness(60);
-        character.setMorality(50);
-        character.setKnowledge(Math.min(100, (int)(old.getKnowledge() * 0.3) + 20));
-        character.setIsAlive(true);
-        character.setGeneration(old.getGeneration() + 1);
-        lifeMapper.insertCharacter(character);
-
-        // 获取 LLM 配置（通过 LlmConfigService 解密 apiKey）
-        LlmConfig config = llmConfigService.getDecryptedConfigByUserId(old.getUserId());
-
-        // 生成首段剧情（轮回转世风格）
-        String userPrompt = buildRebirthPrompt(character);
-        String aiResponse = callAI(config, userPrompt);
-        Map<String, Object> story = parseAIResponse(aiResponse, character);
-
-        saveEvent(character.getId(), character.getAge(), story, "重新开局（第" + character.getGeneration() + "代）");
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("character", character);
-        result.put("story", story);
-        result.put("previousGeneration", old.getGeneration());
-        return result;
     }
 
     @Override
@@ -272,7 +243,7 @@ public class LifeServiceImpl implements LifeService {
         // 拼接系统提示词 + 用户自定义风格
         String fullSystemPrompt = SYSTEM_PROMPT;
         if (config.getCustomPrompt() != null && !config.getCustomPrompt().isBlank()) {
-            fullSystemPrompt += "\n【站主自定义风格要求】\n" + config.getCustomPrompt();
+            fullSystemPrompt += "\n\n【玩家自定义设定】\n" + config.getCustomPrompt();
         }
         try {
             return dynamicLLMService.generate(
@@ -284,60 +255,66 @@ public class LifeServiceImpl implements LifeService {
         }
     }
 
+    /** 构建最近事件的摘要，提供给 AI 作为上下文 */
+    private String buildStoryHistory(Long characterId) {
+        List<LifeEvent> events = lifeMapper.selectEventsByCharacterId(characterId, 0, 8);
+        if (events.isEmpty()) return "（尚无剧情记录）";
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = events.size() - 1; i >= 0; i--) {
+            LifeEvent e = events.get(i);
+            sb.append("第").append(e.getAge()).append("天：").append(e.getDescription());
+            if (e.getChoiceMade() != null && !e.getChoiceMade().isBlank()) {
+                sb.append(" → 选择：").append(e.getChoiceMade());
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
     private String buildStartPrompt(LifeCharacter c) {
         return String.format("""
             玩家名字是：%s
 
-            角色初始状态：
-            - 年龄：%d岁（新生儿）
+            角色初始状态（第1天）：
             - 金钱：%d | 健康：%d | 快乐：%d | 道德：%d | 知识：%d
 
-            这是角色的第一段人生剧情。请从角色的出生开始描述，给出有趣的童年开局剧情和2-4个选项。
+            今天是游戏的第1天，请根据玩家设定生成开局剧情和2-4个选项。
+            不需要返回statChanges（初始状态无需更新）。
             """,
-            c.getName(), c.getAge(), c.getMoney(), c.getHealth(),
+            c.getName(), c.getMoney(), c.getHealth(),
             c.getHappiness(), c.getMorality(), c.getKnowledge()
         );
     }
 
-    private String buildActionPrompt(LifeCharacter c, String choiceMade, Map<String, Object> effects) {
+    private String buildActionPrompt(LifeCharacter c, String choiceMade, String storyHistory) {
         return String.format("""
             玩家名字是：%s
 
-            角色当前状态：
-            - 年龄：%d岁
+            当前是第 %d 天。
+            角色当前属性：
             - 金钱：%d | 健康：%d | 快乐：%d | 道德：%d | 知识：%d
 
-            上一回合，玩家选择了：「%s」
-            属性变化：%s
+            玩家刚才选择了：「%s」
 
-            请根据以上信息，生成下一段人生剧情和2-4个选项。偶尔可以触发随机事件（意外中奖、生病、遇险等）。
+            之前的剧情摘要：
+            %s
+
+            请根据以上信息和玩家设定：
+            1. 判断这个选择带来了什么后果（更新statChanges）
+            2. 生成接下来的剧情和2-4个新选项
+
+            注意：statChanges 表示该选择导致的属性变化。可以有0值（无变化）。
             """,
             c.getName(), c.getAge(), c.getMoney(), c.getHealth(),
             c.getHappiness(), c.getMorality(), c.getKnowledge(),
-            choiceMade, effects != null ? effects.toString() : "无变化"
+            choiceMade, storyHistory
         );
     }
 
-    private String buildRebirthPrompt(LifeCharacter c) {
-        return String.format("""
-            玩家名字是：%s
 
-            角色初始状态：
-            - 年龄：%d岁
-            - 金钱：%d | 健康：%d | 快乐：%d | 道德：%d | 知识：%d
-            - 这是第 %d 代转世
-
-            这是角色的转世开局剧情。请用一种带有"前世记忆碎片"或"轮回转世"风格的描述开始新的旅程，给出2-4个选项。
-            """,
-            c.getName(), c.getAge(), c.getMoney(), c.getHealth(),
-            c.getHappiness(), c.getMorality(), c.getKnowledge(),
-            c.getGeneration()
-        );
-    }
-
-    private Map<String, Object> parseAIResponse(String aiResponse, LifeCharacter character) {
+    private Map<String, Object> parseAIResponse(String aiResponse) {
         try {
-            // 使用括号计数法提取完整 JSON（处理嵌套对象）
             String json = extractJson(aiResponse);
             log.debug("Extracted JSON: {}", json.length() > 200 ? json.substring(0, 200) + "..." : json);
             Map<String, Object> parsed = objectMapper.readValue(json,
@@ -379,18 +356,24 @@ public class LifeServiceImpl implements LifeService {
         return clean.substring(start).trim();
     }
 
-    /** 确保解析后的对象有 description 和 options 字段 */
+    /** 确保解析后的对象有 statChanges、description 和 options 字段 */
     private Map<String, Object> validateAndFix(Map<String, Object> parsed) {
         if (!parsed.containsKey("description") || String.valueOf(parsed.get("description")).isBlank()) {
-            parsed.put("description", "时光流转，你的生活翻开了新的一页。");
+            parsed.put("description", "新的一天开始了，你站在十字路口，思考着接下来该做什么。");
         }
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> options = (List<Map<String, Object>>) parsed.get("options");
         if (options == null || options.isEmpty()) {
             parsed.put("options", List.of(
-                Map.of("text", "勇敢尝试", "effects", Map.of("money", 5, "happiness", 5)),
-                Map.of("text", "保持现状", "effects", Map.of("health", 3, "knowledge", 3)),
-                Map.of("text", "另辟蹊径", "effects", Map.of("morality", 5, "money", -2))
+                Map.of("text", "勇敢尝试新事物"),
+                Map.of("text", "保持现状"),
+                Map.of("text", "另辟蹊径"),
+                Map.of("text", "独自冥想")
+            ));
+        }
+        if (!parsed.containsKey("statChanges")) {
+            parsed.put("statChanges", Map.of(
+                "money", 0, "health", 0, "happiness", 0, "morality", 0, "knowledge", 0
             ));
         }
         return parsed;
@@ -398,22 +381,25 @@ public class LifeServiceImpl implements LifeService {
 
     private Map<String, Object> buildFallback() {
         Map<String, Object> fallback = new LinkedHashMap<>();
+        fallback.put("statChanges", Map.of(
+            "money", 0, "health", 0, "happiness", 5, "morality", 0, "knowledge", 2
+        ));
         fallback.put("description", randomFallbackDescription());
         fallback.put("options", List.of(
-            Map.of("text", "勇敢闯荡", "effects", Map.of("money", 10, "health", -5, "happiness", 5)),
-            Map.of("text", "安分守己", "effects", Map.of("money", 3, "health", 5, "knowledge", 5)),
-            Map.of("text", "结交好友", "effects", Map.of("happiness", 10, "morality", 3)),
-            Map.of("text", "独自冥想", "effects", Map.of("knowledge", 8, "happiness", -2))
+            Map.of("text", "勇敢闯荡"),
+            Map.of("text", "安分守己"),
+            Map.of("text", "结交好友"),
+            Map.of("text", "独自冥想")
         ));
         return fallback;
     }
 
     private String randomFallbackDescription() {
         String[] descs = {
-            "这一年的时光如白驹过隙，你感到生活中充满了可能。站在人生的十字路口，你将何去何从？",
-            "平淡的日子里也藏着惊喜。一封意外的来信、街头偶遇的老朋友，都让这一年变得不同寻常。",
-            "微风拂过面庞，你意识到自己又长大了一岁。过去的选择塑造了现在的你，而未来的路还在脚下延伸。",
-            "夜深人静时，你翻看着日记本，回顾这一年的点点滴滴。有欢笑也有泪水，但每一天都是真实的。"
+            "新的一天开始了，你感到生活中充满了可能。站在人生的十字路口，你将何去何从？",
+            "平淡的日子里也藏着惊喜。一封意外的来信、街头偶遇的老朋友，都让这一天变得不同寻常。",
+            "微风拂过面庞，过去的选择塑造了现在的你，而未来的路还在脚下延伸。",
+            "夜深人静时，你翻看着日记本，回顾这些天的点点滴滴。有欢笑也有泪水，但每一天都是真实的。"
         };
         return descs[new Random().nextInt(descs.length)];
     }

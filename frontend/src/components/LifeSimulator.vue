@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, watch } from 'vue'
-import { makeLifeChoice, getLifeCharacterState, getLifeEvents, resetLifeGame, deleteLifeCharacter } from '@/api/life'
+import { makeLifeChoice, getLifeCharacterState, getLifeEvents, deleteLifeCharacter } from '@/api/life'
 import { readJson, writeJson } from '@/utils/storage'
 
 const props = defineProps({
@@ -136,28 +136,8 @@ async function handleChoice(index) {
   scrollToBottom()
 }
 
-async function handleReset() {
-  if (!confirm('确定要重新开局吗？当前角色的部分成就将被继承。')) return
-  loading.value = true; error.value = ''
-
-  try {
-    const result = await resetLifeGame(character.id)
-    const { character: char, story } = result
-    Object.assign(character, char)
-    storyText.value = story.description || ''
-    options.value = story.options || []
-    isGameOver.value = false
-    writeJson(getStorageKey('characterId'), char.id)
-    await fetchEvents(char.id)
-  } catch (e) {
-    error.value = e.message || '重新开局失败'
-  } finally { loading.value = false }
-
-  scrollToBottom()
-}
-
-async function handleDeleteCharacter() {
-  if (!confirm('确定要删除当前角色的存档吗？\n\n这将删除该角色的所有事件记录。此操作不可撤销！')) return
+async function handleDeleteAndQuit() {
+  if (!confirm('确定要重新开始吗？\n\n这将清除当前所有进度，返回配置页面重新开始。')) return
   loading.value = true; error.value = ''
   try {
     await deleteLifeCharacter(character.id)
@@ -183,8 +163,7 @@ function scrollToBottom() {
       <!-- 顶栏 -->
       <div class="life-topbar">
         <span class="life-topbar-name">{{ character.name }}</span>
-        <span class="life-topbar-meta">🎂 {{ character.age }}岁</span>
-        <span class="life-topbar-meta">🔄 第{{ character.generation }}代</span>
+        <span class="life-topbar-meta">📅 第{{ character.age }}天</span>
         <span v-if="!character.isAlive" class="life-topbar-dead">💀 已死亡</span>
         <span class="life-topbar-spacer"></span>
         <button type="button" class="life-exit-btn" @click="emit('exit')">⚙️ 返回配置</button>
@@ -224,14 +203,11 @@ function scrollToBottom() {
             <span class="life-stat-value">{{ character.knowledge }}</span>
           </div>
 
-          <button type="button" class="game-tab-btn life-reset-btn" :disabled="loading" @click="handleReset">
-            🔄 重新开局
-          </button>
           <button type="button" class="game-link-btn life-log-btn" @click="showEventLog = !showEventLog">
             {{ showEventLog ? '📜 隐藏记录' : '📜 事件记录' }}
           </button>
-          <button type="button" class="life-delete-btn" :disabled="loading" @click="handleDeleteCharacter">
-            🗑️ 删除存档
+          <button type="button" class="life-delete-btn" :disabled="loading" @click="handleDeleteAndQuit">
+            🗑️ 重新开始
           </button>
         </div>
 
@@ -256,8 +232,8 @@ function scrollToBottom() {
           <!-- 游戏结束 -->
           <div v-if="isGameOver" class="life-gameover">
             <p>💀 人生结束</p>
-            <button type="button" class="game-send-btn" :disabled="loading" @click="handleReset">
-              🔄 重新开局（继承成就）
+            <button type="button" class="game-send-btn" :disabled="loading" @click="handleDeleteAndQuit">
+              🗑️ 重新开始
             </button>
           </div>
         </div>
@@ -268,7 +244,7 @@ function scrollToBottom() {
         <h4 class="game-config-title">📜 事件记录</h4>
         <div v-if="eventLog.length === 0" class="life-event-empty">还没有事件记录。</div>
         <div v-for="event in eventLog" :key="event.id || event.age" class="life-event-item">
-          <span class="life-event-age">🎂 {{ event.age }}岁</span>
+          <span class="life-event-age">📅 第{{ event.age }}天</span>
           <span class="life-event-desc">{{ event.description }}</span>
           <span v-if="event.choiceMade" class="life-event-choice">→ {{ event.choiceMade }}</span>
         </div>
@@ -300,7 +276,6 @@ function scrollToBottom() {
 .life-stat-bar { flex: 1; height: 8px; background: #e0d5b7; border-radius: 4px; overflow: hidden; min-width: 30px; }
 .life-stat-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease, background 0.5s ease; }
 .life-stat-value { width: 24px; text-align: right; font-weight: bold; font-size: 11px; color: #333; }
-.life-reset-btn { margin-top: 8px; width: 100%; text-align: center; }
 .life-log-btn { width: 100%; text-align: center; }
 .life-delete-btn { width: 100%; margin-top: 4px; padding: 4px 8px; border: 1px solid #e0c0c0; border-radius: 4px; background: #fff5f5; color: #c62828; font-size: 11px; font-family: inherit; cursor: pointer; text-align: center; }
 .life-delete-btn:hover:not(:disabled) { background: #fce4ec; border-color: #c62828; }
@@ -341,6 +316,6 @@ function scrollToBottom() {
   .life-stat-item { flex: 1 1 auto; min-width: 100px; }
   .life-stat-bar { min-width: 20px; }
   .life-story-area { max-height: 220px; }
-  .life-reset-btn, .life-log-btn { width: auto; flex: 0 0 auto; }
+  .life-log-btn { width: auto; flex: 0 0 auto; }
 }
 </style>

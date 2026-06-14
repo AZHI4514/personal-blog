@@ -40,11 +40,6 @@ export function getLifeEvents(characterId, page = 1, size = 20) {
   return request.get('/api/life/events', { params: { characterId, page, size } })
 }
 
-/** 重新开局 */
-export function resetLifeGame(characterId) {
-  return request.post('/api/life/reset', { characterId })
-}
-
 /** 删除角色及事件 */
 export function deleteLifeCharacter(characterId) {
   return request.delete('/api/life/character', { params: { characterId } })

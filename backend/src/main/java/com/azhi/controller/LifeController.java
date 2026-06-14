@@ -177,25 +177,6 @@ public class LifeController {
         }
     }
 
-    /**
-     * 重新开局（保留部分成就继承）。
-     */
-    @PostMapping("/reset")
-    public Result<Map<String, Object>> resetGame(@RequestBody Map<String, Object> body) {
-        Object characterIdObj = body.get("characterId");
-        if (characterIdObj == null) {
-            return Result.error("characterId 不能为空");
-        }
-        Long characterId = Long.valueOf(characterIdObj.toString());
-
-        try {
-            Map<String, Object> result = lifeService.resetGame(characterId);
-            return Result.success(result);
-        } catch (Exception e) {
-            return Result.error("重新开局失败: " + e.getMessage());
-        }
-    }
-
     // ==================== 删除操作 ====================
 
     /**

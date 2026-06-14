@@ -31,12 +31,6 @@ public interface LifeService {
     List<LifeEvent> getEvents(Long characterId, int page, int size);
 
     /**
-     * 重新开局（保留部分成就继承）。
-     * @return 同 startGame 的返回结构
-     */
-    Map<String, Object> resetGame(Long characterId);
-
-    /**
      * 检查用户是否已配置 LLM。
      */
     boolean hasLlmConfig(String deviceId);
