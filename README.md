@@ -35,6 +35,7 @@ personal-blog/
 │  ├─ src/
 │  │  ├─ api/                       # 前端接口封装
 │  │  ├─ assets/                    # 构建期静态资源
+│  │  ├─ components/               # 共享组件（LifeSimulator.vue / LlmConfigPanel.vue）
 │  │  ├─ composables/               # 组合式业务逻辑
 │  │  ├─ layouts/                   # 页面整体布局
 │  │  ├─ pages/                     # 路由页面
@@ -48,13 +49,13 @@ personal-blog/
 │  └─ vite.config.js
 ├─ backend/                         # Spring Boot 后端工程
 │  ├─ src/main/java/com/azhi/
-│  │  ├─ config/                    # Web、MCP 等配置
-│  │  ├─ controller/                # 控制器
-│  │  ├─ mapper/                    # MyBatis Mapper
-│  │  ├─ pojo/                      # 实体与统一返回结构
-│  │  ├─ service/                   # 业务接口与实现
+│  │  ├─ config/                    # Web、MCP、LLM 加解密 等配置
+│  │  ├─ controller/                # 控制器（含 LifeController）
+│  │  ├─ mapper/                    # MyBatis Mapper（含 LifeMapper）
+│  │  ├─ pojo/                      # 实体与统一返回结构（含 LifeCharacter / LifeEvent / LifeUser 等）
+│  │  ├─ service/                   # 业务接口与实现（含 LifeService / DynamicLLMService）
 │  │  └─ PersonalBlogApplication.java
-│  ├─ src/main/resources/           # 配置文件与提示词资源
+│  ├─ src/main/resources/           # 配置文件、提示词资源、life_simulator_init.sql
 │  ├─ uploads/                      # 本地上传目录
 │  └─ pom.xml
 ├─ Live2d/                          # Live2D 原始 SDK 与模型素材
@@ -82,6 +83,7 @@ personal-blog/
 - 基于 Session 的用户登录 / 注册
 - Live2D 游戏角
 - `/ai/chat` SSE 流式对话
+- 人生模拟器（文字版 GTA）：用户自配 LLM 动态生成开放世界剧情
 
 ## 前端说明
 
@@ -356,6 +358,144 @@ sudo systemctl reload nginx
 - [backend/src/main/java/com/azhi/service/AiCodeHelperService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/AiCodeHelperService.java:1)
 - [backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java:1)
 
+## 人生模拟器
+
+人生模拟器是一个**文字版 GTA** 风格的游戏模块，集成在游戏角 `/games` 页面中。核心特点是：用户自己提供大模型（LLM）接口，后端动态调用 AI 生成开放式剧情。
+
+### 概述
+
+- 玩家配置自己的 LLM（支持任意 OpenAI 兼容 API），后端不预设模型
+- 每个选择由 AI 实时计算属性变化（金钱、健康、快乐、道德、知识）并生成下一段剧情
+- 属性降到 0 时角色死亡，游戏结束
+- 支持断点续玩、事件历史回溯、存档删除
+- 用户可自定义世界观、角色类型、禁用词等，AI 生成剧情时遵循自定义规则
+
+### 页面结构
+
+游戏入口位于游戏角的"🎮 人生模拟器"标签页，内部有两个子面板：
+
+| 子面板 | 说明 |
+|--------|------|
+| **配置面板**（`LlmConfigPanel.vue`） | 输入 Base URL + API Key + 模型名称，测试连接，保存配置；设置自定义剧情风格（世界观/角色/禁用词）；开始新游戏或继续存档 |
+| **游戏界面**（`LifeSimulator.vue`） | 展示角色属性条（金钱/健康/快乐/道德/知识）、当前剧情文本、2-4 个选项按钮；可查看事件记录、返回配置页、重新开始 |
+
+相关文件：
+
+- 前端页面入口：[frontend/src/pages/GamesPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/GamesPage.vue:1) —— 管理 `lifeSimSubPanel` 切换逻辑
+- 配置面板：[frontend/src/components/LlmConfigPanel.vue](/abs/path/D:/personal-blog/frontend/src/components/LlmConfigPanel.vue:1)
+- 游戏界面：[frontend/src/components/LifeSimulator.vue](/abs/path/D:/personal-blog/frontend/src/components/LifeSimulator.vue:1)
+- API 封装：[frontend/src/api/life.js](/abs/path/D:/personal-blog/frontend/src/api/life.js:1)
+- 本地存储：[frontend/src/utils/storage.js](/abs/path/D:/personal-blog/frontend/src/utils/storage.js:1) —— 提供 `readJson` / `writeJson` 安全封装
+
+### API 端点
+
+所有端点位于 `/api/life/*`，由 [backend/src/main/java/com/azhi/controller/LifeController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/LifeController.java:1) 统一处理。
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| `POST` | `/api/life/llm/config` | 保存/更新 LLM 配置（apiKey 加密存储） |
+| `GET` | `/api/life/llm/config` | 获取 LLM 配置（apiKey 脱敏） |
+| `POST` | `/api/life/llm/test` | 测试 LLM 连接是否可用 |
+| `POST` | `/api/life/start` | 初始化新角色并返回首段剧情 |
+| `POST` | `/api/life/action` | 提交用户选择，返回下一段剧情 |
+| `GET` | `/api/life/state` | 获取角色当前状态 |
+| `GET` | `/api/life/events` | 获取事件历史（分页） |
+| `DELETE` | `/api/life/character` | 删除指定角色及关联事件 |
+| `DELETE` | `/api/life/user/data` | 删除用户全部数据（配置 + 角色 + 事件） |
+
+### 后端架构
+
+#### 核心服务
+
+| 类 | 职责 |
+|----|------|
+| `LifeController` | 统一处理 `/api/life/*` 请求 |
+| `LifeService` / `LifeServiceImpl` | 游戏核心逻辑：开局、回合推进、属性结算、AI 响应解析 |
+| `LlmConfigService` / `LlmConfigServiceImpl` | LLM 配置的 CRUD、apiKey AES 加解密 |
+| `DynamicLLMService` | 使用 Java 内置 `HttpClient` 直接调用 OpenAI 兼容 API，超时 3 秒 |
+
+关键实现文件：
+
+- [LifeController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/LifeController.java:1)
+- [LifeService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/LifeService.java:1)
+- [LifeServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/LifeServiceImpl.java:1)
+- [DynamicLLMService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/DynamicLLMService.java:1)
+- [LifeMapper.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/mapper/LifeMapper.java:1)
+
+#### 动态 LLM 调用的设计考量
+
+项目已有 LangChain4j 的 `OpenAiChatModel`，但人生模拟器不使用它，原因是：
+
+- LangChain4j 的 `OpenAiChatModel.builder()` 依赖 `ServiceLoader` 动态注册 HTTP 客户端
+- 在同一个 JVM 中多次动态创建时会抛出 `Multiple HTTP client implementations found` 异常
+- `DynamicLLMService` 使用 Java 内置 `HttpClient` 直接发送 OpenAI 兼容的 `/chat/completions` 请求，避免了 HTTP 客户端冲突
+
+#### 属性变化机制
+
+每回合 AI 返回 JSON 包含 `statChanges` 对象，每个属性变化范围 -20 到 +20：
+
+- `money`（金钱）：工作、交易、投资等事件影响
+- `health`（健康）：仅身体受伤、疾病、战斗等直接伤害事件可扣除；日常剧情只能保持或增加
+- `happiness`（快乐）：社交、成功、失败等情绪事件影响
+- `morality`（道德）：善恶抉择影响
+- `knowledge`（知识）：学习、探索、与人交流影响
+
+任何属性降至 0 或以下 → 角色死亡，游戏结束。
+
+### 数据库
+
+人生模拟器使用 4 张独立表（前缀 `life_`），与博客主表共享同一 `blog_db` 数据库。
+
+```text
+life_user          # 用户设备绑定（device_id → user_id）
+life_llm_config    # LLM 配置（api_key AES 加密存储，custom_prompt 可自定义剧情风格）
+life_character     # 角色存档（5 维属性 + 存活状态 + 世代数）
+life_event         # 事件历史（age/description/choice_made/effects JSON）
+```
+
+DDL 脚本参考：
+
+- [life_simulator_init.sql](/abs/path/D:/personal-blog/backend/src/main/resources/life_simulator_init.sql:1) —— 手动初始化
+- [LifeTableInitializer.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/config/LifeTableInitializer.java:1) —— 应用启动时自动建表（`IF NOT EXISTS`，幂等安全）
+- [LifeMapper.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/mapper/LifeMapper.java:1) —— DDL 通过 MyBatis `@Update` 注解执行
+
+### 用户数据流
+
+```
+用户浏览器                        后端
+    │                              │
+    ├─1.填写 LLM 配置──────────────→│ AES 加密 apiKey → life_llm_config
+    ├─2.测试连接──────────────────→│ 调用 /chat/completions，返回测试结果
+    ├─3.开始游戏──────────────────→│ 创建 life_character + 调用 AI 生成开局剧情
+    │←─返回首段剧情+选项──────────│
+    ├─4.选择选项──────────────────→│ 调用 AI 计算属性变化+生成下一段剧情
+    │←─返回新剧情+属性变化+新选项──│ 更新 life_character + 写入 life_event
+    │   ...重复 4...               │
+    ├─5.游戏结束/重新开局──────────→│ DELETE 角色+事件 或 重新 INSERT
+```
+
+### 数据安全
+
+- **apiKey 加密**：后端使用 AES-GCM 将 apiKey 加密后存入 `life_llm_config`，读取时解密
+- **localStorage 明文缓存**：前端将 apiKey 明文存入 `localStorage`（key 格式 `lifeSim:<deviceId>:apiKey`），用于"测试连接"和"下次回来恢复完整 Key"（后端只返回脱敏后的 Key）
+- **deviceId**：前端生成 `device-` 前缀的唯一标识，写入 `localStorage`，用于关联用户设备与后端数据
+- **删除操作**：前端提供"重新开始"（删角色+事件）和"删除所有数据"（删 LLM 配置+所有角色+所有事件+用户记录）两级删除
+
+### API Key 的存储策略
+
+前端和后端对 apiKey 采用不同的存储和处理方式：
+
+- **后端**：apiKey 使用 AES-GCM 加密后存入 `life_llm_config.api_key` 字段，读取时解密后直接传给 AI 接口
+- **前端 localStorage**：明文保存 apiKey，用于用户在配置面板查看/编辑/测试时不需要每次重新输入
+- **脱敏返回**：`GET /api/life/llm/config` 返回的 apiKey 经过脱敏处理（只显示前 4 位 + `****`）
+- **恢复逻辑**：配置面板 `onMounted` 时优先从 localStorage 恢复明文 apiKey，再从后端取脱敏 Key 兜底
+
+### 存档机制
+
+- **单存档**：每个设备（`deviceId`）只能有一个存活角色，开始新游戏会自动删除旧存档
+- **断点恢复**：页面刷新后，从 `localStorage` 读取 `characterId`，调用 `/api/life/state` 恢复状态，再拉取最近事件还原剧情
+- **存档失效处理**：如果后端角色已不存在或已死亡，前端自动返回配置面板
+
 ## 本地开发
 
 ### 环境要求
@@ -395,6 +535,7 @@ Vite 会把这些前缀代理到后端：
 - `/ai`
 - `/users`
 - `/visitor-stats`
+- `/api/life`
 
 ## 构建
 
@@ -475,6 +616,7 @@ client_max_body_size 50M;
 - `/users`
 - `/visitor-stats`
 - `/ai`
+- `/api/life`
 
 ### 常见部署坑
 
