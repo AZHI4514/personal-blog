@@ -104,6 +104,10 @@ export default defineConfig(async ({ command }) => {
         '/visitor-stats': {
           target: 'http://localhost:8080',
           changeOrigin: true
+        },
+        '/api': {
+          target: 'http://localhost:8080',
+          changeOrigin: true
         }
       }
     }
