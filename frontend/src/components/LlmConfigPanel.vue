@@ -200,10 +200,10 @@ async function handleDeleteAll() {
 
         <div class="llm-config-field">
           <label class="llm-config-label">🎨 自定义剧情风格（可选）</label>
-          <textarea v-model="customPrompt" rows="4"
+          <textarea v-model="customPrompt" rows="6"
             class="llm-config-input llm-config-textarea"
-            placeholder="示例：&#10;剧情风格：中国古代仙侠世界，充满江湖恩怨&#10;地名：青云山、落日峰、长安城&#10;角色：剑客、道士、商人、官员&#10;禁用词：手机、电脑、汽车"></textarea>
-          <span class="llm-config-example">设定世界观、角色类型、禁用词等，AI 生成剧情时会遵循这些规则</span>
+            placeholder="示例格式（按需填写，越详细越好）：&#10;&#10;剧情风格：中国古代仙侠世界，充满江湖恩怨与门派纷争&#10;世界观：架空的大唐王朝，灵气复苏，凡人可修仙&#10;地名：青云山、落日峰、长安城、幽冥谷、东海龙宫&#10;角色：剑客（正派）、道士（中立）、商人（友好）&#10;　　NPC：青云掌门（严厉）、酒馆掌柜（话痨）、神秘乞丐（线索人）&#10;属性映射：&#10;　　money → 修炼资源/银两&#10;　　health → 身体受伤/战斗时扣除，日常保持或增加&#10;剧情规则：&#10;　　1. 每段剧情约100字&#10;　　2. 保留角色的性格特点和口癖&#10;　　3. health归零 → 角色死亡，游戏结束&#10;禁用词：手机、电脑、汽车、飞机、互联网"></textarea>
+          <span class="llm-config-example">设定世界观、角色属性、剧情规则、禁用词等。AI 会在系统提示词末尾拼接你的设定，严格遵循。</span>
         </div>
 
         <!-- ========== 消息区 ========== -->
