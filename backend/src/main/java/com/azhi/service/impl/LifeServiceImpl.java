@@ -69,8 +69,15 @@ public class LifeServiceImpl implements LifeService {
         return doStartGame(user.getId(), name, config);
     }
 
-    /** 创建全新角色并生成开局剧情 */
+    /** 创建全新角色并生成开局剧情（一个账号只保留一个存档） */
     private Map<String, Object> doStartGame(Long userId, String name, LlmConfig config) {
+        // 删除旧存档（一个账号只能有一个角色）
+        LifeCharacter existing = lifeMapper.selectAliveCharacterByUserId(userId);
+        if (existing != null) {
+            lifeMapper.deleteEventsByCharacterId(existing.getId());
+            lifeMapper.deleteCharacter(existing.getId());
+        }
+
         LifeCharacter character = createFreshCharacter(userId, name);
         lifeMapper.insertCharacter(character);
 

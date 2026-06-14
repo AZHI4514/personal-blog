@@ -15,6 +15,7 @@ const {
   gameInput,
   gameMessages,
   gameConfigItems,
+  currentUser,
   clearGameConversationAndMemory,
   sendGameMessage
 } = useBlogApp()
@@ -120,6 +121,7 @@ function onBackToConfig() {
           <LlmConfigPanel
             v-if="lifeSimSubPanel === 'config'"
             :device-id="deviceId"
+            :username="currentUser?.username || ''"
             @game-started="onGameStarted"
           />
           <LifeSimulator

@@ -1,10 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { saveLlmConfig, getLlmConfig, testLlmConnection, startLifeGame, deleteLifeUserData } from '@/api/life'
+import { saveLlmConfig, getLlmConfig, testLlmConnection, startLifeGame, getLifeCharacterState, deleteLifeUserData } from '@/api/life'
 import { readJson, writeJson } from '@/utils/storage'
 
 const props = defineProps({
-  deviceId: { type: String, required: true }
+  deviceId: { type: String, required: true },
+  username: { type: String, default: '' }
 })
 
 const emit = defineEmits(['gameStarted'])
@@ -14,7 +15,6 @@ const emit = defineEmits(['gameStarted'])
 const baseUrl = ref('')
 const apiKey = ref('')
 const modelName = ref('gpt-3.5-turbo')
-const playerName = ref('')
 const customPrompt = ref('')
 const showApiKey = ref(false)
 
@@ -26,14 +26,11 @@ const starting = ref(false)
 const testResult = ref('')
 const error = ref('')
 const hasConfig = ref(false)
+const hasSavedGame = ref(false)
 
 // ==================== 生命周期 ====================
 
 onMounted(async () => {
-  // 恢复玩家名
-  const savedName = readJson(getStorageKey('playerName'), '')
-  if (savedName) playerName.value = savedName
-
   // 优先从 localStorage 恢复完整 apiKey（明文），后端只存加密后的
   const localApiKey = readJson(getStorageKey('apiKey'), '')
   if (localApiKey) apiKey.value = localApiKey
@@ -46,13 +43,25 @@ onMounted(async () => {
       baseUrl.value = config.baseUrl || ''
       modelName.value = config.modelName || 'gpt-3.5-turbo'
       customPrompt.value = config.customPrompt || ''
-      // apiKey：localStorage 已有就用本地的（完整），否则用后端的脱敏版
       if (!localApiKey) {
         apiKey.value = config.apiKey || ''
       }
     }
   } catch {
     // 未配置
+  }
+
+  // 检查是否有可继续的存档
+  const savedCharId = readJson(getStorageKey('characterId'), null)
+  if (savedCharId) {
+    try {
+      const char = await getLifeCharacterState(savedCharId)
+      if (char && char.isAlive) {
+        hasSavedGame.value = true
+      }
+    } catch {
+      // 存档失效
+    }
   }
 })
 
@@ -101,7 +110,7 @@ async function handleSave() {
 }
 
 async function handleStartGame() {
-  if (!playerName.value.trim()) { error.value = '请输入玩家名字'; return }
+  if (!props.username) { error.value = '请先登录'; return }
 
   // 如果还没保存配置，先自动保存
   if (!hasConfig.value && baseUrl.value.trim() && apiKey.value.trim()) {
@@ -113,17 +122,18 @@ async function handleStartGame() {
 
   starting.value = true; error.value = ''
   try {
-    // 持久化玩家名
-    writeJson(getStorageKey('playerName'), playerName.value.trim())
-
     const result = await startLifeGame({
       deviceId: props.deviceId,
-      name: playerName.value.trim()
+      name: props.username
     })
     emit('gameStarted', result)
   } catch (e) {
     error.value = e.message || '游戏启动失败'
   } finally { starting.value = false }
+}
+
+function handleContinueGame() {
+  emit('gameStarted', null) // null = 从后端恢复存档，不创建新游戏
 }
 
 async function handleDeleteAll() {
@@ -132,10 +142,11 @@ async function handleDeleteAll() {
   try {
     await deleteLifeUserData(props.deviceId)
     hasConfig.value = false
+    hasSavedGame.value = false
     baseUrl.value = ''; apiKey.value = ''; modelName.value = 'gpt-3.5-turbo'
-    customPrompt.value = ''; playerName.value = ''
-    writeJson(getStorageKey('playerName'), null)
+    customPrompt.value = ''
     writeJson(getStorageKey('apiKey'), null)
+    writeJson(getStorageKey('characterId'), null)
     error.value = ''
     alert('所有数据已删除')
   } catch (e) {
@@ -182,11 +193,9 @@ async function handleDeleteAll() {
         <div class="llm-config-section-title">🎮 玩家设置</div>
 
         <div class="llm-config-field">
-          <label class="llm-config-label">玩家名字 *</label>
-          <input v-model="playerName" type="text" class="llm-config-input"
-            placeholder="输入你的角色名（如：张三）"
-            @keydown.enter="handleStartGame" />
-          <span class="llm-config-example">这个名字会传给 AI，用于生成个性化剧情</span>
+          <label class="llm-config-label">玩家名字</label>
+          <div class="llm-config-readonly">{{ username || '（未登录）' }}</div>
+          <span class="llm-config-example">使用登录账号名，AI 以此称呼你</span>
         </div>
 
         <div class="llm-config-field">
@@ -208,6 +217,9 @@ async function handleDeleteAll() {
           </button>
           <button type="button" class="game-tab-btn" :disabled="saving" @click="handleSave">
             {{ saving ? '保存中...' : '💾 保存配置' }}
+          </button>
+          <button v-if="hasSavedGame" type="button" class="game-send-btn" @click="handleContinueGame">
+            ▶️ 继续游戏
           </button>
           <button type="button" class="game-send-btn" :disabled="starting" @click="handleStartGame">
             {{ starting ? '启动中...' : '🚀 开始游戏' }}
@@ -240,6 +252,10 @@ async function handleDeleteAll() {
   font-size: 13px; font-family: inherit; background: #fffef7; color: #333; box-sizing: border-box;
 }
 .llm-config-input:focus { outline: none; border-color: #800000; box-shadow: 0 0 0 2px rgba(128,0,0,0.1); }
+.llm-config-readonly {
+  width: 100%; padding: 8px 10px; border: 1px solid #e0d5b7; border-radius: 4px;
+  font-size: 14px; font-weight: bold; color: #800000; background: #fdf8e8; box-sizing: border-box;
+}
 .llm-config-textarea { resize: vertical; min-height: 80px; line-height: 1.6; font-size: 12px; }
 .llm-config-input-wrap { display: flex; gap: 0; }
 .llm-config-input-wrap .llm-config-input { flex: 1; border-radius: 4px 0 0 4px; }
