@@ -295,11 +295,14 @@ public class LifeServiceImpl implements LifeService {
         String userPrompt = buildStartPrompt(character);
         String fullSystemPrompt = buildFullSystemPrompt(config);
 
+        // 用 DescriptionFilter 过滤，只推送 description 正文
+        DescriptionFilter filter = new DescriptionFilter(onText);
+
         try {
             String aiResponse = dynamicLLMService.generateStream(
                 config.getUserId(), config.getBaseUrl(), config.getApiKey(),
                 config.getModelName(), fullSystemPrompt, userPrompt,
-                onText
+                filter
             );
             Map<String, Object> story = parseAIResponse(aiResponse);
             saveEvent(character.getId(), character.getAge(), story, "游戏开始");
@@ -349,11 +352,14 @@ public class LifeServiceImpl implements LifeService {
         String userPrompt = buildActionPrompt(character, choiceText, storyHistory);
         String fullSystemPrompt = buildFullSystemPrompt(llmConfig);
 
+        // 用 DescriptionFilter 过滤，只推送 description 正文
+        DescriptionFilter filter = new DescriptionFilter(onText);
+
         try {
             String aiResponse = dynamicLLMService.generateStream(
                 llmConfig.getUserId(), llmConfig.getBaseUrl(), llmConfig.getApiKey(),
                 llmConfig.getModelName(), fullSystemPrompt, userPrompt,
-                onText
+                filter
             );
             Map<String, Object> story = parseAIResponse(aiResponse);
 
@@ -610,5 +616,70 @@ public class LifeServiceImpl implements LifeService {
             event.setEffects("{}");
         }
         lifeMapper.insertEvent(event);
+    }
+
+    // ==================== 流式描述过滤器 ====================
+
+    /**
+     * 从 AI 生成的原始 JSON 流中实时提取 "description" 字段的值，
+     * 只将故事正文推送给前端，过滤掉 statChanges / options 等 JSON 结构。
+     */
+    private static class DescriptionFilter implements Consumer<String> {
+        private final Consumer<String> output;
+        private final StringBuilder buf = new StringBuilder();
+        private boolean inDesc = false;
+        private boolean escape = false;
+
+        DescriptionFilter(Consumer<String> output) {
+            this.output = output;
+        }
+
+        @Override
+        public void accept(String chunk) {
+            if (chunk == null || chunk.isEmpty()) return;
+            buf.append(chunk);
+            if (!inDesc) {
+                // 寻找 "description" 键，容忍冒号前后有空格
+                int keyIdx = buf.indexOf("\"description\"");
+                if (keyIdx >= 0) {
+                    int colonIdx = buf.indexOf(":", keyIdx + 13);
+                    if (colonIdx >= 0) {
+                        int quoteIdx = buf.indexOf("\"", colonIdx + 1);
+                        if (quoteIdx >= 0) {
+                            buf.delete(0, quoteIdx + 1);
+                            inDesc = true;
+                            flush();
+                        }
+                    }
+                }
+            } else {
+                flush();
+            }
+        }
+
+        private void flush() {
+            StringBuilder emit = new StringBuilder();
+            String s = buf.toString();
+            int i;
+            for (i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (escape) {
+                    emit.append(c);
+                    escape = false;
+                } else if (c == '\\') {
+                    escape = true;
+                } else if (c == '"') {
+                    // description 值结束
+                    inDesc = false;
+                    break;
+                } else {
+                    emit.append(c);
+                }
+            }
+            buf.delete(0, i + (inDesc ? 0 : 1)); // 保留结束引号后的内容（可能还有后续字段）
+            if (emit.length() > 0) {
+                output.accept(emit.toString());
+            }
+        }
     }
 }
