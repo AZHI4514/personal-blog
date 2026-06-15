@@ -8,10 +8,13 @@ import com.azhi.pojo.Result;
 import com.azhi.service.LifeService;
 import com.azhi.service.LlmConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/life")
@@ -140,6 +143,83 @@ public class LifeController {
             return Result.error(e.getMessage());
         } catch (Exception e) {
             return Result.error("操作失败: " + e.getMessage());
+        }
+    }
+
+    // ==================== 流式端点（SSE） ====================
+
+    /**
+     * 流式初始化新角色，AI 生成的剧情实时推送到前端。
+     */
+    @PostMapping(value = "/start/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter startGameStream(@RequestBody Map<String, String> body) {
+        String deviceId = body.get("deviceId");
+        String name = body.getOrDefault("name", "无名氏");
+
+        if (deviceId == null || deviceId.isBlank()) {
+            SseEmitter errEmitter = new SseEmitter();
+            errEmitter.completeWithError(new IllegalArgumentException("deviceId 不能为空"));
+            return errEmitter;
+        }
+
+        SseEmitter emitter = new SseEmitter(120_000L);
+        CompletableFuture.runAsync(() -> {
+            try {
+                lifeService.startGameStream(deviceId, name,
+                    text -> sendSseEvent(emitter, "text", Map.of("text", text)),
+                    result -> {
+                        sendSseEvent(emitter, "result", result);
+                        emitter.complete();
+                    }
+                );
+            } catch (Exception e) {
+                sendSseEvent(emitter, "error", Map.of("message", e.getMessage()));
+                emitter.completeWithError(e);
+            }
+        });
+        return emitter;
+    }
+
+    /**
+     * 流式提交选择，AI 生成的剧情实时推送到前端。
+     */
+    @PostMapping(value = "/action/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter processActionStream(@RequestBody LifeActionRequest request) {
+        if (request.getCharacterId() == null) {
+            SseEmitter errEmitter = new SseEmitter();
+            errEmitter.completeWithError(new IllegalArgumentException("characterId 不能为空"));
+            return errEmitter;
+        }
+        if (request.getChoiceIndex() == null) {
+            SseEmitter errEmitter = new SseEmitter();
+            errEmitter.completeWithError(new IllegalArgumentException("choiceIndex 不能为空"));
+            return errEmitter;
+        }
+
+        SseEmitter emitter = new SseEmitter(120_000L);
+        CompletableFuture.runAsync(() -> {
+            try {
+                lifeService.processActionStream(request.getCharacterId(), request.getChoiceIndex(),
+                    text -> sendSseEvent(emitter, "text", Map.of("text", text)),
+                    result -> {
+                        sendSseEvent(emitter, "result", result);
+                        emitter.complete();
+                    }
+                );
+            } catch (Exception e) {
+                sendSseEvent(emitter, "error", Map.of("message", e.getMessage()));
+                emitter.completeWithError(e);
+            }
+        });
+        return emitter;
+    }
+
+    /** 安全发送 SSE 事件 */
+    private void sendSseEvent(SseEmitter emitter, String eventName, Object data) {
+        try {
+            emitter.send(SseEmitter.event().name(eventName).data(data));
+        } catch (Exception ignored) {
+            // 客户端可能已断开
         }
     }
 

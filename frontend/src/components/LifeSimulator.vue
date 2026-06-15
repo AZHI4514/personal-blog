@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick, watch } from 'vue'
-import { makeLifeChoice, getLifeCharacterState, getLifeEvents, deleteLifeCharacter } from '@/api/life'
+import { makeLifeChoiceStream, getLifeCharacterState, getLifeEvents, deleteLifeCharacter } from '@/api/life'
 import { readJson, writeJson } from '@/utils/storage'
 
 const props = defineProps({
@@ -114,18 +114,25 @@ watch(showEventLog, async (visible) => {
 async function handleChoice(index) {
   if (loading.value || isGameOver.value) return
   loading.value = true; error.value = ''
+  storyText.value = '' // 清空以接收流式文本
 
   try {
-    const result = await makeLifeChoice({ characterId: character.id, choiceIndex: index })
+    const result = await makeLifeChoiceStream(
+      { characterId: character.id, choiceIndex: index },
+      (chunk) => { storyText.value += chunk }
+    )
     const { character: char, story } = result
 
     Object.assign(character, char)
-    storyText.value = story.description || ''
 
     if (story.isGameOver) {
       isGameOver.value = true; options.value = []
+      storyText.value = story.description || storyText.value
     } else {
-      options.value = story.options || []; isGameOver.value = false
+      // 用解析后的描述替换流式原始文本
+      storyText.value = story.description || storyText.value
+      options.value = story.options || []
+      isGameOver.value = false
     }
 
     await fetchEvents(character.id)

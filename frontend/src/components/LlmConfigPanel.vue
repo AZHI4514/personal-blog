@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { saveLlmConfig, getLlmConfig, testLlmConnection, startLifeGame, getLifeCharacterState, deleteLifeUserData } from '@/api/life'
+import { saveLlmConfig, getLlmConfig, testLlmConnection, startLifeGameStream, getLifeCharacterState, deleteLifeUserData } from '@/api/life'
 import { readJson, writeJson } from '@/utils/storage'
 
 const props = defineProps({
@@ -122,7 +122,7 @@ async function handleStartGame() {
 
   starting.value = true; error.value = ''
   try {
-    const result = await startLifeGame({
+    const result = await startLifeGameStream({
       deviceId: props.deviceId,
       name: props.username
     })

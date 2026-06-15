@@ -11,7 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,7 +43,8 @@ public class LifeServiceImpl implements LifeService {
         如果玩家没有提供设定，则自由发挥创意。
 
         角色属性（0-100）：money(金钱), health(健康), happiness(快乐), morality(道德), knowledge(知识)。
-        当任一属性降至0或以下时，角色死亡。
+        仅当health(健康)降至0或以下时，角色死亡，游戏结束。
+        其他属性(money/happiness/morality/knowledge)降至0不会导致死亡，但会严重影响剧情走向。
 
         【重要规则】health(健康) 仅在剧情中明确涉及身体受伤、疾病、战斗、意外事故等直接伤害身体的
         事件时才可以扣除。日常剧情、社交活动、工作学习等不涉及身体伤害的场景，health 只能保持或增加，
@@ -243,22 +246,158 @@ public class LifeServiceImpl implements LifeService {
         return user;
     }
 
+    /** 拼接系统提示词与玩家自定义设定 */
+    private String buildFullSystemPrompt(LlmConfig config) {
+        String full = SYSTEM_PROMPT;
+        if (config != null && config.getCustomPrompt() != null && !config.getCustomPrompt().isBlank()) {
+            full += "\n\n【玩家自定义设定】\n" + config.getCustomPrompt();
+        }
+        return full;
+    }
+
     private String callAI(LlmConfig config, String userPrompt) {
         if (config == null) {
             throw new IllegalStateException("大模型配置不存在");
         }
-        // 拼接系统提示词 + 用户自定义风格
-        String fullSystemPrompt = SYSTEM_PROMPT;
-        if (config.getCustomPrompt() != null && !config.getCustomPrompt().isBlank()) {
-            fullSystemPrompt += "\n\n【玩家自定义设定】\n" + config.getCustomPrompt();
-        }
         try {
             return dynamicLLMService.generate(
                 config.getUserId(), config.getBaseUrl(), config.getApiKey(),
-                config.getModelName(), fullSystemPrompt, userPrompt
+                config.getModelName(), buildFullSystemPrompt(config), userPrompt
             );
         } catch (Exception e) {
-            throw new RuntimeException("AI 生成剧情超时（3秒），请检查大模型配置或重试: " + e.getMessage(), e);
+            throw new RuntimeException("AI 生成剧情失败，请检查大模型配置或重试: " + e.getMessage(), e);
+        }
+    }
+
+    // ==================== 流式方法（SSE） ====================
+
+    @Override
+    @Transactional
+    public void startGameStream(String deviceId, String name,
+                                Consumer<String> onText, Consumer<Map<String, Object>> onDone) {
+        LlmConfig config = llmConfigService.getConfig(deviceId);
+        if (config == null) {
+            throw new IllegalStateException("请先配置大模型再开始游戏");
+        }
+        LifeUser user = ensureUser(deviceId);
+        Long userId = user.getId();
+
+        // 删除旧存档
+        LifeCharacter existing = lifeMapper.selectAliveCharacterByUserId(userId);
+        if (existing != null) {
+            lifeMapper.deleteEventsByCharacterId(existing.getId());
+            lifeMapper.deleteCharacter(existing.getId());
+        }
+
+        LifeCharacter character = createFreshCharacter(userId, name);
+        lifeMapper.insertCharacter(character);
+
+        String userPrompt = buildStartPrompt(character);
+        String fullSystemPrompt = buildFullSystemPrompt(config);
+
+        try {
+            String aiResponse = dynamicLLMService.generateStream(
+                config.getUserId(), config.getBaseUrl(), config.getApiKey(),
+                config.getModelName(), fullSystemPrompt, userPrompt,
+                onText
+            );
+            Map<String, Object> story = parseAIResponse(aiResponse);
+            saveEvent(character.getId(), character.getAge(), story, "游戏开始");
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("character", character);
+            result.put("story", story);
+            onDone.accept(result);
+        } catch (IOException e) {
+            throw new RuntimeException("AI 生成剧情失败: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("AI 生成被中断", e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void processActionStream(Long characterId, Integer choiceIndex,
+                                    Consumer<String> onText, Consumer<Map<String, Object>> onDone) {
+        LifeCharacter character = lifeMapper.selectCharacterById(characterId);
+        if (character == null) {
+            throw new IllegalArgumentException("角色不存在");
+        }
+        if (!Boolean.TRUE.equals(character.getIsAlive())) {
+            throw new IllegalStateException("角色已死亡，请重新开局");
+        }
+
+        List<LifeEvent> recentEvents = lifeMapper.selectEventsByCharacterId(characterId, 0, 1);
+        if (recentEvents.isEmpty()) {
+            throw new IllegalStateException("没有找到之前的剧情，请重新开始游戏");
+        }
+
+        LifeEvent lastEvent = recentEvents.get(0);
+        Map<String, Object> lastStory = parseJson(lastEvent.getEffects());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> options = (List<Map<String, Object>>) lastStory.get("options");
+
+        if (options == null || choiceIndex < 0 || choiceIndex >= options.size()) {
+            throw new IllegalArgumentException("无效的选择");
+        }
+
+        String choiceText = (String) options.get(choiceIndex).get("text");
+        String storyHistory = buildStoryHistory(characterId);
+        LlmConfig llmConfig = llmConfigService.getDecryptedConfigByUserId(character.getUserId());
+
+        String userPrompt = buildActionPrompt(character, choiceText, storyHistory);
+        String fullSystemPrompt = buildFullSystemPrompt(llmConfig);
+
+        try {
+            String aiResponse = dynamicLLMService.generateStream(
+                llmConfig.getUserId(), llmConfig.getBaseUrl(), llmConfig.getApiKey(),
+                llmConfig.getModelName(), fullSystemPrompt, userPrompt,
+                onText
+            );
+            Map<String, Object> story = parseAIResponse(aiResponse);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> statChanges = (Map<String, Object>) story.get("statChanges");
+            if (statChanges != null) {
+                applyEffects(character, statChanges);
+            }
+
+            character.setAge(character.getAge() + 1);
+            lifeMapper.updateCharacter(character);
+
+            // 检查死亡
+            if (!Boolean.TRUE.equals(character.getIsAlive())) {
+                saveEvent(character.getId(), character.getAge(),
+                    Map.of("description", "你的人生走到了尽头...", "options", List.of()),
+                    choiceText);
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("character", character);
+                result.put("story", Map.of(
+                    "description", "你的人生走到了尽头。第 " + character.getAge() + " 天。点击「重新开局」开始新的旅程。",
+                    "options", List.of(),
+                    "isGameOver", true
+                ));
+                result.put("lastChoice", choiceText);
+                result.put("lastEffects", statChanges);
+                onDone.accept(result);
+                return;
+            }
+
+            story.remove("statChanges");
+            saveEvent(character.getId(), character.getAge(), story, choiceText);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("character", character);
+            result.put("story", story);
+            result.put("lastChoice", choiceText);
+            result.put("lastEffects", statChanges);
+            onDone.accept(result);
+        } catch (IOException e) {
+            throw new RuntimeException("AI 生成剧情失败: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("AI 生成被中断", e);
         }
     }
 
@@ -328,9 +467,9 @@ public class LifeServiceImpl implements LifeService {
                 new TypeReference<Map<String, Object>>() {});
             return validateAndFix(parsed);
         } catch (Exception e) {
-            log.warn("AI response parse failed, using fallback. Raw: {}",
-                aiResponse != null ? aiResponse.substring(0, Math.min(200, aiResponse.length())) : "null");
-            return buildFallback();
+            log.error("AI response parse failed. Raw: {}",
+                aiResponse != null ? aiResponse.substring(0, Math.min(300, aiResponse.length())) : "null");
+            throw new RuntimeException("大模型返回了无效的响应，请重试", e);
         }
     }
 
@@ -430,12 +569,15 @@ public class LifeServiceImpl implements LifeService {
             }
         }
 
-        // 限定范围 0-100，如果任何属性 <=0 → 死亡
+        // 限定范围 0-100
+        // 只有 health(健康) <= 0 才判定死亡，其余属性降到 0 只影响剧情走向
         boolean dead = false;
         for (Map.Entry<String, Integer> entry : statMap.entrySet()) {
             int value = Math.max(0, Math.min(100, entry.getValue()));
-            if (value <= 0) dead = true;
             statMap.put(entry.getKey(), value);
+            if ("health".equals(entry.getKey()) && value <= 0) {
+                dead = true;
+            }
         }
 
         character.setMoney(statMap.get("money"));

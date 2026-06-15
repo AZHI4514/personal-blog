@@ -5,6 +5,7 @@ import com.azhi.pojo.LifeEvent;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public interface LifeService {
 
@@ -19,6 +20,19 @@ public interface LifeService {
      * @return { character: LifeCharacter, story: { description, options }, event: LifeEvent }
      */
     Map<String, Object> processAction(Long characterId, Integer choiceIndex);
+
+    /**
+     * 流式开始游戏：AI 生成文本通过 onText 回调实时推送，完成后调用 onDone。
+     * onText 接收原始 AI 输出的文本片段；onDone 接收最终的结构化结果。
+     */
+    void startGameStream(String deviceId, String name,
+                         Consumer<String> onText, Consumer<Map<String, Object>> onDone);
+
+    /**
+     * 流式提交选择：AI 生成文本通过 onText 回调实时推送，完成后调用 onDone。
+     */
+    void processActionStream(Long characterId, Integer choiceIndex,
+                             Consumer<String> onText, Consumer<Map<String, Object>> onDone);
 
     /**
      * 获取当前角色状态。
