@@ -1,6 +1,38 @@
 # 星尘观测站
 
-一个以前端单页博客为主体、后端提供内容管理与 AI 对话能力的个人站点项目。当前包含首页、个人资料、画廊、音乐页、BBS、Live2D 游戏角，以及基于 SSE 的聊天助手。
+一个以前端单页博客为主体、后端提供内容管理与 AI 对话能力的个人站点项目。当前包含首页、个人资料、画廊、音乐页、BBS、以及 Live2D 游戏角。
+
+## 目录
+
+- [技术栈](#技术栈)
+- [目录结构](#目录结构)
+- [主要功能](#主要功能)
+- [前端说明](#前端说明)
+  - [当前结构与页面组织](#当前结构与页面组织)
+  - [浏览器兼容](#浏览器兼容)
+  - [启动期容错](#启动期容错)
+  - [Live2D 自定义与问题排查](#live2d-自定义与问题排查)
+- [用户认证](#用户认证)
+- [AI 对话](#ai-对话)
+- [人生模拟器](#人生模拟器)
+- [本地开发](#本地开发)
+- [构建](#构建)
+- [生产部署](#生产部署)
+- [后端环境变量](#后端环境变量)
+- [上传目录](#上传目录)
+- [统一响应格式](#统一响应格式)
+- [业务模块](#业务模块)
+  - [BBS 论坛](#bbs-论坛)
+  - [画廊](#画廊)
+  - [音乐播放器](#音乐播放器)
+  - [鼓掌/点赞](#鼓掌点赞)
+  - [访客统计](#访客统计)
+  - [管理员后台](#管理员后台)
+  - [链接与规则页](#链接与规则页)
+- [LangChain4j 与 MCP 集成](#langchain4j-与-mcp-集成)
+- [全局异常处理](#全局异常处理)
+- [后端 API 接口汇总](#后端-api-接口汇总)
+- [CORS 与静态资源配置](#cors-与静态资源配置)
 
 ## 技术栈
 
@@ -49,13 +81,13 @@ personal-blog/
 │  └─ vite.config.js
 ├─ backend/                         # Spring Boot 后端工程
 │  ├─ src/main/java/com/azhi/
-│  │  ├─ config/                    # Web、MCP、LLM 加解密 等配置
-│  │  ├─ controller/                # 控制器（含 LifeController）
-│  │  ├─ mapper/                    # MyBatis Mapper（含 LifeMapper）
-│  │  ├─ pojo/                      # 实体与统一返回结构（含 LifeCharacter / LifeEvent / LifeUser 等）
-│  │  ├─ service/                   # 业务接口与实现（含 LifeService / DynamicLLMService）
+│  │  ├─ config/                    # Web（CORS+静态资源）、MCP（联网搜索）、Crypto（AES 加解密）、LifeTableInitializer（自动建表）
+│  │  ├─ controller/                # 控制器（LifeController / PostController / AiControlller / GalleryController / MusicController / UploadController 等）
+│  │  ├─ mapper/                    # MyBatis Mapper（LifeMapper / PostMapper / ImageMapper / MusicMapper / ClapMapper 等）
+│  │  ├─ pojo/                      # 实体与统一返回结构（User / Post / Image / Music / Result / LifeCharacter / LifeEvent 等）
+│  │  ├─ service/                   # 接口（顶层）+ impl/（实现），含 LifeService / AiCodeHelperService / DynamicLLMService / SafeInputGuardrail 等
 │  │  └─ PersonalBlogApplication.java
-│  ├─ src/main/resources/           # 配置文件、提示词资源、life_simulator_init.sql
+│  ├─ src/main/resources/           # application.yml、system-prompt.txt、life_simulator_init.sql
 │  ├─ uploads/                      # 本地上传目录
 │  └─ pom.xml
 ├─ Live2d/                          # Live2D 原始 SDK 与模型素材
@@ -69,7 +101,10 @@ personal-blog/
 
 - `frontend/` 和 `backend/` 是当前实际运行的主项目代码。
 - `frontend/src/pages/` 负责页面拆分，`frontend/src/layouts/DefaultLayout.vue` 负责整体骨架，`frontend/src/composables/useBlogApp.js` 集中管理主要前端状态与业务逻辑。
+- `frontend/src/api/` 封装所有后端接口调用，模块按功能拆分（`post.js`、`user.js`、`music.js`、`gallery.js`、`life.js` 等），统一通过 `request.js` Axios 实例发起请求。
 - `frontend/public/` 保存构建后仍需按原路径直接访问的资源，例如 Live2D 运行时文件、图片与音乐资源。
+- `backend/src/main/java/com/azhi/service/` 下接口与 `impl/` 实现分离；`config/` 集中管理 Web/CORS、MCP 工具、AES 加解密和数据库自动建表。
+- `backend/src/main/java/com/azhi/controller/GlobalExceptionHandler.java` 为全局异常拦截器，统一返回 `Result` 错误格式。
 - `backend/uploads/` 用于保存后端上传的图片和音乐文件。
 - `Live2d/` 保存原始 SDK 与模型素材，Vite 构建阶段会引用其中的源码。
 
@@ -79,11 +114,15 @@ personal-blog/
 - 个人资料页 / 100 问 100 答
 - 画廊展示与后台上传
 - 音乐列表、播放控制、封面展示
-- BBS 发帖、回复、编辑、删除
+- BBS 发帖、回复、编辑、删除（deleteKey 机制 + 管理员权限）
+- 鼓掌/点赞互动
+- 访客统计（IP 去重）
 - 基于 Session 的用户登录 / 注册
 - Live2D 游戏角
-- `/ai/chat` SSE 流式对话
+- `/ai/chat` SSE 流式对话（LangChain4j + MCP 联网搜索 + 敏感词过滤）
 - 人生模拟器（文字版 GTA）：用户自配 LLM 动态生成开放世界剧情
+- 管理员后台（内容管理）
+- 友情链接与站规展示
 
 ## 前端说明
 
@@ -342,21 +381,34 @@ sudo systemctl reload nginx
 
 ## AI 对话
 
-当前 AI 对话统一由前端直接请求后端 SSE 接口：
+当前 AI 对话基于 LangChain4j + Spring WebFlux 实现 SSE 流式输出。
 
-- `GET /ai/chat`
+### 请求方式
+
+- 端点：`GET /ai/chat`
 - 响应类型：`text/event-stream`
+- 请求参数：`memoryId`（会话隔离标识）、`message`（用户消息）
 
-请求参数：
+### 核心文件
 
-- `memoryId`
-- `message`
+- 控制器：[AiControlller.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/AiControlller.java:1) — SSE 端点
+- 接口定义：[AiCodeHelperService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/AiCodeHelperService.java:1) — 声明式 AI Service
+- 服务构建：[AiCodeHelperServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java:1) — AiServices 装配
+- 安全护栏：[SafeInputGuardrail.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/SafeInputGuardrail.java:1) — 敏感词过滤
+- MCP 配置：[McpConfig.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/config/McpConfig.java:1) — 联网搜索工具
+- 系统提示词：[system-prompt.txt](/abs/path/D:/personal-blog/backend/src/main/resources/system-prompt.txt:1)
 
-后端核心入口与实现：
+### 架构概览
 
-- [backend/src/main/java/com/azhi/controller/AiControlller.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/AiControlller.java:1)
-- [backend/src/main/java/com/azhi/service/AiCodeHelperService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/AiCodeHelperService.java:1)
-- [backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java:1)
+| 层 | 组件 | 说明 |
+|----|------|------|
+| 对话模型 | `ChatModel` / `StreamingChatModel` | LangChain4j 自动注入，指向 `mimo-v2.5` |
+| 会话记忆 | `MessageWindowChatMemory` | 每个 `memoryId` 保留最近 10 条消息 |
+| 工具调用 | `McpToolProvider` | 阿里云 DashScope MCP Web 搜索 |
+| 安全护栏 | `SafeInputGuardrail` | 模型调用前过滤敏感词 |
+| 流式输出 | `Flux<ServerSentEvent<String>>` | Reactor 流式推送，事件类型 `message`/`done`/`error` |
+
+详细的 LangChain4j 集成、MCP 配置、安全护栏和系统提示词说明见 [LangChain4j 与 MCP 集成](#langchain4j-与-mcp-集成)。
 
 ## 人生模拟器
 
@@ -652,3 +704,296 @@ DASHSCOPE_API_KEY=your_dashscope_api_key
 - `/uploads/**`
 
 映射到本地上传目录 `file.upload.path`。部署时需要提前创建该目录，并保证后端进程有读写权限。
+
+## 统一响应格式
+
+后端所有接口统一返回以下 JSON 结构（见 [Result.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/pojo/Result.java:1)）：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": { ... }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | `Integer` | 200 表示成功，400 表示客户端错误，500 表示服务器错误 |
+| `message` | `String` | 成功时固定 `"success"`，失败时包含错误描述 |
+| `data` | `T`（泛型） | 实际返回的业务数据，可以是对象、数组或 null |
+
+前端 [request.js](/abs/path/D:/personal-blog/frontend/src/api/request.js:1) 通过 Axios 响应拦截器自动解包：`code === 200` 时返回 `data`，其他情况以 `Promise.reject` 抛出，上层可统一 `catch`。
+
+## BBS 论坛
+
+BBS 是站点核心互动模块，支持发帖、编辑、删除和图片附件。前端页面位于 [BbsPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/BbsPage.vue:1)，后端控制器位于 [PostController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/PostController.java:1)。
+
+### 数据结构
+
+帖子包含标题（`title`）、内容（`content`）、图片路径（`image_path`）和删除密钥（`delete_key`）。删除时需提供创建时生成的 `deleteKey`，防止被他人恶意删除。
+
+### 权限模型
+
+| 操作 | 条件 | 说明 |
+|------|------|------|
+| 查看帖子 | 无需登录 | 所有人可见 |
+| 创建帖子 | 需登录 | Session 中 `currentUser` 不为空 |
+| 编辑帖子 | 需提供 `deleteKey` | 编辑时校验删除密钥 |
+| 删除帖子 | `deleteKey` 或管理员 | 普通用户凭密钥删除；管理员（`username = "AZHI4514"`）可删除任意帖子 |
+
+### 编辑流程
+
+- 调用 `PUT /posts/{postId}`，请求体包含 `deleteKey`、`title`、`content`、`imagePath`
+- 后端校验 `deleteKey` 匹配后更新帖子记录
+
+## 画廊
+
+画廊页展示图片集合，前端页面位于 [GalleryPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/GalleryPage.vue:1)，后端控制器位于 [GalleryController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/GalleryController.java:1)。
+
+### 功能
+
+| 操作 | 端点 | 说明 |
+|------|------|------|
+| 查看所有图片 | `GET /images` | 返回图片列表（含路径和元信息） |
+| 添加图片 | `POST /images` | 管理员后台操作，接受 `{ imageUrl, description }` |
+| 删除图片 | `DELETE /images/{imageId}` | 管理员后台操作 |
+
+### 图片上传
+
+图片文件通过 `POST /uploads/images` 上传，后端保存到 `file.upload.path` 目录并返回相对路径。上传接口见 [UploadController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/UploadController.java:1)。
+
+## 音乐播放器
+
+音乐页提供播放控制、封面展示和列表管理。前端页面位于 [MusicPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/MusicPage.vue:1)，后端控制器位于 [MusicController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/MusicController.java:1)。
+
+### 功能
+
+| 操作 | 端点 | 说明 |
+|------|------|------|
+| 获取音乐列表 | `GET /musics` | 返回所有音乐（标题、演唱者、文件路径、封面路径） |
+| 添加音乐 | `POST /musics` | 管理员添加音乐条目 |
+| 删除音乐 | `DELETE /musics/{musicId}` | 管理员删除音乐 |
+
+### 音乐上传
+
+音乐文件通过 `POST /uploads/musics` 上传，支持 MP3 格式。文件保存到上传目录后，路径记录在 `music` 表中。
+
+前端使用 HTML5 `<audio>` 实现播放控制，支持顺序播放和点击切换。页面展示封面图和当前播放曲目信息。
+
+## 鼓掌/点赞
+
+一个轻量互动模块，访客可为站点点击鼓掌。后端控制器位于 [ClapController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/ClapController.java:1)。
+
+- 端点：`POST /clap`
+- 无需登录，每次请求鼓掌计数 +1
+- Clap 数据持久化在 `clap` 表，可用于展示站点点赞数
+
+## 访客统计
+
+记录并展示站点总访问量。后端控制器位于 [VisitorStatsController.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/VisitorStatsController.java:1)。
+
+| 操作 | 端点 | 说明 |
+|------|------|------|
+| 记录访问 | `POST /visitor-stats/record` | 记录一次访问（按 IP 去重），返回总访问量 |
+| 查询总数 | `GET /visitor-stats/total` | 仅返回当前总访问量，不记录 |
+
+IP 获取优先级：`X-Forwarded-For` > `X-Real-IP` > `RemoteAddr`，适配 Nginx 反向代理场景。
+
+## 管理员后台
+
+管理员页面位于 [AdminPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/AdminPage.vue:1)，提供站点内容管理入口。当前管理员通过用户名硬编码识别（`username = "AZHI4514"`）。
+
+管理功能包括：
+- 图片上传与画廊管理（添加/删除图片）
+- 音乐上传与音乐管理（添加/删除音乐）
+- 帖子管理（管理员可删除任意帖子，无需 `deleteKey`）
+
+管理员身份判断逻辑分布于各控制器中，核心判断位于 [PostController.deletePost()](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/PostController.java:39)。
+
+## 链接与规则页
+
+### 友情链接（LinksPage）
+
+链接页位于 [LinksPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/LinksPage.vue:1)，展示外部友情链接列表。当前为静态页面，链接数据直接维护在前端组件中。
+
+路由：`/links`
+
+### 站规（RulesPage）
+
+规则页位于 [RulesPage.vue](/abs/path/D:/personal-blog/frontend/src/pages/RulesPage.vue:1)，展示站点规则说明。当前为静态页面，内容直接维护在前端组件中。
+
+路由：`/rules`
+
+## LangChain4j 与 MCP 集成
+
+当前 AI 对话模块基于 LangChain4j 构建，核心架构包含以下几层。
+
+### AI Service 接口
+
+对话接口定义在 [AiCodeHelperService.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/AiCodeHelperService.java:1)，使用 LangChain4j 声明式 AI Service 模式：
+
+- `@SystemMessage(fromResource = "system-prompt.txt")`：从 classpath 加载系统提示词，定义 AI 角色为"星辰观测站游戏角的房间伙伴 Yachiyo"
+- `@MemoryId`：按 `memoryId` 隔离对话记忆，每个会话独立存储
+- `@InputGuardrails`：绑定输入安全护栏
+- 支持三种交互模式：
+  - `chat()`：普通对话
+  - `chatStream()`：`Flux<String>` 流式输出
+  - `chatForReport()`：结构化输出（学习报告）
+
+### 服务构建
+
+AI Service 实例在 [AiCodeHelperServiceImpl.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/AiCodeHelperServiceImpl.java:1) 中通过 `AiServices.builder()` 创建，关键组件：
+
+| 组件 | 说明 |
+|------|------|
+| `ChatModel` | LangChain4j 自动注入的非流式聊天模型（`mimo-v2.5`） |
+| `StreamingChatModel` | 流式聊天模型，用于 SSE 实时推送 |
+| `MessageWindowChatMemory` | 滑动窗口记忆，每个会话保留最近 10 条消息 |
+| `McpToolProvider` | MCP 工具提供者，为 AI 提供联网搜索能力 |
+
+### MCP 工具集成
+
+MCP 配置位于 [McpConfig.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/config/McpConfig.java:1)，通过阿里云 DashScope MCP 服务为 AI 提供 Web 搜索工具：
+
+- 协议：Streamable HTTP（`StreamableHttpMcpTransport`）
+- 目标：`dashscope.aliyuncs.com/api/v1/mcps/WebSearch/mcp`
+- 认证：Bearer Token（`DASHSCOPE_API_KEY` 环境变量）
+- 工具仅在 AI 判断需要搜索时才调用（见系统提示词第 5 条）
+
+### 安全输入护栏
+
+[SafeInputGuardrail.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/service/impl/SafeInputGuardrail.java:1) 实现 LangChain4j 的 `InputGuardrail` 接口，在用户消息进入 AI 模型前进行敏感词过滤。
+
+- 所有检查不区分大小写
+- 按单词边界（`\W+`）分割输入文本
+- 命中敏感词时返回 `fatal()`，阻止消息送达模型
+- 当前敏感词列表：`kill`, `die`, `suicide`, `death`, `murder`, `assault`, `attack`, `shoot` 及相关短语
+
+### SSE 流式输出
+
+AI 对话控制器 [AiControlller.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/AiControlller.java:1) 使用 Spring WebFlux 的 `Flux<ServerSentEvent<String>>` 实现 SSE：
+
+- 请求：`GET /ai/chat?memoryId=N&message=...`
+- 响应：`text/event-stream`
+- 事件类型：`message`（内容块）、`done`（结束标记 `[DONE]`）、`error`（错误信息）
+- 前端通过 `EventSource` 或 `fetch` + `ReadableStream` 消费流
+
+### 系统提示词
+
+系统提示词文件 [system-prompt.txt](/abs/path/D:/personal-blog/backend/src/main/resources/system-prompt.txt:1) 定义了 AI 的角色和行为规范：
+
+1. 角色身份：站长为 AZHI4514，AI 名为 Yachiyo
+2. 服务定位：星辰观测站游戏角的房间伙伴
+3. 语气要求：温和、自然、简洁，有陪伴感
+4. 安全边界：理解情绪、清晰解答、不夸张、不失控
+5. 工具调用：仅在明确要求搜索时才调用联网功能
+
+## 全局异常处理
+
+后端使用 `@RestControllerAdvice` 全局拦截异常，统一返回 `Result` 格式的错误响应。
+
+实现文件：[GlobalExceptionHandler.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/controller/GlobalExceptionHandler.java:1)
+
+当前覆盖的异常类型：
+
+| 异常 | HTTP 状态码 | 说明 |
+|------|------------|------|
+| `IllegalArgumentException` | 400 | 参数校验失败或业务逻辑冲突（如未登录发帖、deleteKey 不匹配） |
+| `IllegalStateException` | 500 | 服务器内部状态错误（如 AI 服务异常） |
+| `MaxUploadSizeExceededException` | 400 | 上传文件超过 `MULTIPART_MAX_FILE_SIZE` 限制 |
+
+前端 Axios 响应拦截器配合处理，当 `code !== 200` 时统一转换为 `Promise.reject`，上层业务代码集中 `catch` 即可。
+
+## 后端 API 接口汇总
+
+以下按模块列出所有后端 API 端点，标注认证要求和对应控制器。
+
+### BBS 论坛
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `GET` | `/posts` | 获取所有帖子 | 无 | `PostController` |
+| `POST` | `/posts` | 创建帖子 | 需登录 | `PostController` |
+| `PUT` | `/posts/{postId}` | 编辑帖子 | 需 deleteKey | `PostController` |
+| `DELETE` | `/posts/{postId}` | 删除帖子 | deleteKey 或管理员 | `PostController` |
+
+### 画廊
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `GET` | `/images` | 获取所有图片 | 无 | `GalleryController` |
+| `POST` | `/images` | 添加图片 | 管理员 | `GalleryController` |
+| `DELETE` | `/images/{imageId}` | 删除图片 | 管理员 | `GalleryController` |
+
+### 音乐
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `GET` | `/musics` | 获取音乐列表 | 无 | `MusicController` |
+| `POST` | `/musics` | 添加音乐 | 管理员 | `MusicController` |
+| `DELETE` | `/musics/{musicId}` | 删除音乐 | 管理员 | `MusicController` |
+
+### 上传
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `POST` | `/uploads/images` | 上传图片文件 | 管理员 | `UploadController` |
+| `POST` | `/uploads/musics` | 上传音乐文件 | 管理员 | `UploadController` |
+
+### 鼓掌与访客统计
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `POST` | `/clap` | 鼓掌 +1 | 无 | `ClapController` |
+| `POST` | `/visitor-stats/record` | 记录访问（IP 去重） | 无 | `VisitorStatsController` |
+| `GET` | `/visitor-stats/total` | 查询总访问量 | 无 | `VisitorStatsController` |
+
+### 用户
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `POST` | `/users/register` | 注册 | 无 | `UserController` |
+| `POST` | `/users/login` | 登录 | 无 | `UserController` |
+| `POST` | `/users/logout` | 退出 | 无 | `UserController` |
+
+### AI 对话
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `GET` | `/ai/chat` | SSE 流式对话 | 无 | `AiControlller` |
+
+### 人生模拟器
+
+| 方法 | 端点 | 说明 | 认证 | 控制器 |
+|------|------|------|------|--------|
+| `POST` | `/api/life/llm/config` | 保存/更新 LLM 配置 | 无（deviceId 绑定） | `LifeController` |
+| `GET` | `/api/life/llm/config` | 获取 LLM 配置（apiKey 脱敏） | 无 | `LifeController` |
+| `POST` | `/api/life/llm/test` | 测试 LLM 连接 | 无 | `LifeController` |
+| `POST` | `/api/life/start` | 初始化新角色（非流式） | 无 | `LifeController` |
+| `POST` | `/api/life/start/stream` | 初始化新角色（SSE 流式） | 无 | `LifeController` |
+| `POST` | `/api/life/action` | 提交选择（非流式） | 无 | `LifeController` |
+| `POST` | `/api/life/action/stream` | 提交选择（SSE 流式） | 无 | `LifeController` |
+| `GET` | `/api/life/state` | 获取角色当前状态 | 无 | `LifeController` |
+| `GET` | `/api/life/events` | 获取事件历史（分页） | 无 | `LifeController` |
+| `DELETE` | `/api/life/character` | 删除指定角色及事件 | 无 | `LifeController` |
+| `DELETE` | `/api/life/user/data` | 删除用户全部数据 | 无 | `LifeController` |
+
+## CORS 与静态资源配置
+
+### CORS 跨域
+
+[WebConfig.java](/abs/path/D:/personal-blog/backend/src/main/java/com/azhi/config/WebConfig.java:1) 配置了 CORS 跨域规则：
+
+- 允许的源：通过 `CORS_ALLOWED_ORIGINS` 环境变量配置（逗号分隔，支持通配符模式，如 `https://*.example.com`）
+- 允许的方法：`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`
+- 允许的头部：`*`
+- 携带凭证：`allowCredentials(true)`，配合前端的 `withCredentials: true`
+
+开发环境默认允许 `http://localhost:5173`。
+
+### 静态资源映射
+
+`WebConfig` 同时将 `/uploads/**` URL 路径映射到 `file.upload.path` 本地目录，使上传的图片和音乐文件可直接通过 URL 访问。
+
+前端 `public/` 目录下的静态资源（Live2D 运行时、favicon、音乐文件等）在构建后直接复制到 `dist/`，由 Nginx 或 Vite 开发服务器直接提供，不经过后端。
