@@ -38,6 +38,8 @@ public class PostController {
 
     @DeleteMapping("/{postId}")
     public Result<Void> deletePost(HttpSession session, @PathVariable Long postId, @RequestBody(required = false) Map<String, String> body) {
+        requireLogin(session);
+
         String deleteKey = body == null ? null : body.get("deleteKey");
         if (isAdminUser(session.getAttribute("currentUser"))) {
             postService.deletePostAsAdmin(postId);
